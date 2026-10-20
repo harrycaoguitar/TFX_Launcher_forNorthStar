@@ -6,9 +6,9 @@
 
 TFX brings **Northstar Global** and **NorthstarCN China** to one TITANFALL 2 installation. Choose a network, launch the matching client, and keep your community play in one place. A unified installer recognizes DDS skins, VTF skins and Northstar Mods automatically; the Arsenal organizes skins by weapon and lets you return directly to a valid historical skin or the original.
 
-[Download TFX 1.0.4](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/releases/tag/v1.0.4) · [Report a problem](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/issues) · [Build from source](BUILD.md)
+[Download TFX 1.0.6](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/releases/tag/v1.0.6) · [Report a problem](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/issues) · [Build from source](BUILD.md)
 
-The latest stable release is **[1.0.4](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/releases/tag/v1.0.4)**. It includes official-server Mods and three-server Mod states, described [below](#official-server-mods-and-three-server-states). The gallery shows the released 1.0.3 interface.
+The latest stable release is **[1.0.6](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/releases/tag/v1.0.6)**. It includes official-server Mods and three-server Mod states, described [below](#official-server-mods-and-three-server-states). The gallery shows the released 1.0.3 interface.
 
 ![TFX Northstar launch screen](docs/images/play.webp)
 
@@ -35,9 +35,9 @@ These are actual **English TFX 1.0.3** screens. Numbered packages, servers, path
 
 ## Get started
 
-TFX is a **Windows x64 portable launcher**. You need a purchased, installed copy of TITANFALL 2, a working Steam / EA environment, and free space for client files, package staging and recovery data. The game is not included.
+TFX is a **Windows x64 installer** that installs a portable launcher for the current user. The installed application folder uses about 316 MiB. You need a purchased, installed copy of TITANFALL 2, a working Steam / EA environment, and free space for client files, package staging and recovery data. The game is not included.
 
-1. Run `TFX-Launcher-1.0.4.exe` from [Releases](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/releases/latest).
+1. Run `TFX-Launcher-1.0.6.exe` from [Releases](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/releases/latest).
 2. Let TFX detect the game, or select the game root containing `Titanfall2.exe`. Choose the actual game folder, rather than `steamapps`, `common` or a Mod subfolder.
 3. Open **Northstar**, select **CN** or **Global**, and install that client if TFX reports it is missing.
 4. Launch. Complete any platform sign-in or ownership confirmation in Steam / EA if requested.
@@ -61,7 +61,7 @@ After both clients are prepared, switching uses the corresponding prepared core 
 
 ### Official-server Mods and three-server states
 
-**Included in stable 1.0.4.** On the **Vanilla** launch screen, choose **Without Mods** or **With Mods**, using the same selector style as Northstar's CN / Global choice. **Without Mods** uses the normal Steam / EA game launch. **With Mods** loads compatible client-side Mods while retaining official multiplayer; it does not connect to a Northstar community network.
+**Included in stable 1.0.6.** On the **Vanilla** launch screen, choose **Without Mods** or **With Mods**, using the same selector style as Northstar's CN / Global choice. **Without Mods** uses the normal Steam / EA game launch. **With Mods** loads compatible client-side Mods while retaining official multiplayer; it does not connect to a Northstar community network.
 
 Before the first **With Mods** launch, use the page's installation action to prepare **VanillaPlus 2.5.1** and a compatible **Northstar Global runtime, version 1.29.0 or newer**. A missing, damaged or outdated component is shown as needing installation or repair. Checking its status does not start a download or the game. The installer validates the bundled VanillaPlus files, prepares the global runtime and reports progress; installation and repair require the game to be closed. TFX selects the necessary core components for each launch mode, so switching back to Northstar restores its community menus.
 
