@@ -6,9 +6,9 @@
 
 TFX 将 **Northstar 全球服**与 **NorthstarCN 中国服**整合到同一份 TITANFALL 2 游戏安装中。选好服务器区域，启动对应客户端；DDS 皮肤、VTF 皮肤和北极星 Mod 都可以拖入统一入口，自动识别、检查并安装。武器库按武器整理皮肤，还能直接切回有效的历史皮肤或恢复原版。
 
-[下载 TFX Launcher 1.0.6 安装版](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/releases/tag/v1.0.6) · [反馈问题](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/issues) · [从源码构建](BUILD.md)
+[下载 TFX Launcher 1.0.7 安装版](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/releases/tag/v1.0.7) · [反馈问题](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/issues) · [从源码构建](BUILD.md)
 
-当前最新稳定版为 **[1.0.6](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/releases/tag/v1.0.6)**，本版提供 Windows x64 安装程序，按当前用户安装启动器。界面图片展示正式版 1.0.3。
+当前最新稳定版为 **[1.0.7](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/releases/tag/v1.0.7)**，本版提供 Windows x64 安装程序，按当前用户安装启动器。界面图片展示正式版 1.0.3。
 
 ![TFX 北极星启动界面，英文版](docs/images/play.webp)
 
@@ -37,7 +37,7 @@ TFX 将 **Northstar 全球服**与 **NorthstarCN 中国服**整合到同一份 T
 
 TFX 提供 **Windows x64 安装程序**，按当前用户安装便携式启动器；安装后的程序文件夹约占用 316 MiB。需要已购买并安装的 TITANFALL 2、可以正常使用的 Steam / EA 环境，以及足够存放客户端、安装暂存与恢复数据的空间。启动器不包含游戏本体。
 
-1. 在 [Releases](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/releases/latest) 下载并运行 `TFX-Launcher-1.0.6-Setup.exe`。
+1. 在 [Releases](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/releases/latest) 下载并运行 `TFX-Launcher-1.0.7-Setup.exe`。
 2. 等待自动检测游戏；检测失败时，选择包含 `Titanfall2.exe` 的游戏根目录。不要选 `steamapps`、`common` 或 Mod 子目录。
 3. 打开**北极星**，选择**中国服**或**全球服**；如果提示未安装，先安装对应客户端。
 4. 点击启动。Steam / EA 若要求登录或确认，请在对应平台完成。

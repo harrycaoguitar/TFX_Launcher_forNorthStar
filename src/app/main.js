@@ -148,7 +148,7 @@ function setButtons(state, enable_gamepath_btns) {
 	disablearray(document.querySelectorAll("#browser #browserEntries .text button"));
 
 	if (enable_gamepath_btns) {
-		let gamepath_btns = 
+		let gamepath_btns =
 			document.querySelectorAll('*[onclick="setpath()"]');
 
 		for (let i = 0; i < gamepath_btns.length; i++) {
@@ -395,6 +395,7 @@ ipcRenderer.on("mods", (event, mods_obj) => {
 // Updates version numbers
 ipcRenderer.on("version", (event, versions) => {
 	vpversion.innerText = versions.vp;
+	launcherEditionVersion.innerText = String(versions.vp).replace(/^v/, "");
 	if (window.VyraClient) VyraClient.receiveVersion(versions);
 	else nsversion.innerText = versions.ns;
 	tf2Version.innerText = versions.tf2;

@@ -6,9 +6,9 @@
 
 TFX brings **Northstar Global** and **NorthstarCN China** to one TITANFALL 2 installation. Choose a network, launch the matching client, and keep your community play in one place. A unified installer recognizes DDS skins, VTF skins and Northstar Mods automatically; the Arsenal organizes skins by weapon and lets you return directly to a valid historical skin or the original.
 
-[Download TFX 1.0.6](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/releases/tag/v1.0.6) · [Report a problem](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/issues) · [Build from source](BUILD.md)
+[Download TFX 1.0.7](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/releases/tag/v1.0.7) · [Report a problem](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/issues) · [Build from source](BUILD.md)
 
-The latest stable release is **[1.0.6](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/releases/tag/v1.0.6)**. This release provides a Windows x64 installer for the launcher. The gallery shows the released 1.0.3 interface.
+The latest stable release is **[1.0.7](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/releases/tag/v1.0.7)**. This release provides a Windows x64 installer for the launcher. The gallery shows the released 1.0.3 interface.
 
 ![TFX Northstar launch screen](docs/images/play.webp)
 
@@ -37,7 +37,7 @@ These are actual **English TFX 1.0.3** screens. Numbered packages, servers, path
 
 TFX is a **Windows x64 installer** that installs a portable launcher for the current user. The installed application folder uses about 316 MiB. You need a purchased, installed copy of TITANFALL 2, a working Steam / EA environment, and free space for client files, package staging and recovery data. The game is not included.
 
-1. Run `TFX-Launcher-1.0.6-Setup.exe` from [Releases](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/releases/latest).
+1. Run `TFX-Launcher-1.0.7-Setup.exe` from [Releases](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/releases/latest).
 2. Let TFX detect the game, or select the game root containing `Titanfall2.exe`. Choose the actual game folder, rather than `steamapps`, `common` or a Mod subfolder.
 3. Open **Northstar**, select **CN** or **Global**, and install that client if TFX reports it is missing.
 4. Launch. Complete any platform sign-in or ownership confirmation in Steam / EA if requested.

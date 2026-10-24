@@ -1,4 +1,5 @@
 "use strict";
+const launcherVersion=require("./launcher-version");
 // Public GitHub metadata only. Checking never downloads or installs an asset;
 // links are revalidated in main before the explicit open IPC is accepted.
 const https=require("https");
@@ -103,7 +104,7 @@ function createUpdater({currentVersion,transport=https,now=Date.now,timeoutMs=TI
  }
  return {check,open};
 }
-function register({ipcMain,shell,currentVersion=require("../../package.json").version}={}){
+function register({ipcMain,shell,currentVersion=launcherVersion()}={}){
  const updater=createUpdater({currentVersion,openExternal:url=>shell.openExternal(url)});
  ipcMain.handle("launcher-update-check",(_event,input={})=>updater.check(input));
  ipcMain.handle("launcher-update-open",(_event,input={})=>updater.open(input));

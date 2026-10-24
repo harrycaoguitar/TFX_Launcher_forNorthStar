@@ -1,5 +1,6 @@
 const path = require("path");
 const { app, BrowserWindow, screen } = require("electron");
+const launcherVersion = require("./modules/launcher-version");
 
 // A separate profile is useful for testing the portable build without changing
 // the player's existing configuration. Normal launches use the original paths.
@@ -146,7 +147,7 @@ function start() {
 	// Registrations remain synchronous in this turn: renderer IPC cannot be
 	// delivered until every launch guard and recovery service is installed.
 	win.loadFile(path.join(__dirname, "app/index.html"), {
-		userAgent: "TFX/" + require("../package.json").version,
+		userAgent: "TFX/" + launcherVersion(),
 	})
 	require("./modules/mods");
 	require("./modules/packages");

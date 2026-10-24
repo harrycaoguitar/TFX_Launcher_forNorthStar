@@ -1,7 +1,7 @@
 {
   "name": "tfx-launcher",
   "productName": "TFX Launcher",
-  "version": "1.0.5",
+  "version": "1.0.7",
   "description": "泰坦陨落 2 · 北极星、DDS 与 VTF 皮肤启动器",
   "main": "src/index.js",
   "author": "HarryCao",

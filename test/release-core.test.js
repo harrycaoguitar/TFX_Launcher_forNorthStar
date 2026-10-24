@@ -1,6 +1,8 @@
 "use strict";
 const test=require("node:test"),assert=require("node:assert/strict"),fs=require("fs"),path=require("path"),os=require("os"),vm=require("vm"),{createRequire}=require("module"),{EventEmitter}=require("events"),zlib=require("zlib");
+const Module=require("node:module"),originalLoad=Module._load;Module._load=function(request,parent,isMain){if(request==="electron")return{app:{getVersion:()=>"1.0.7"}};return originalLoad.call(this,request,parent,isMain);};
 const preferences=require("../src/preferences"),server=require("../src/modules/server-list"),updater=require("../src/modules/launcher-update");
+Module._load=originalLoad;
 
 test("malformed saved preferences normalize without breaking Settings controls",()=>{
   for(const raw of [null,[],"bad",{gamepath:42,theme:{},uiLanguage:[],modSort:"bad",excludes:null,nsargs:{},originkill:"false",nsupdate:"false"}]){
@@ -28,7 +30,7 @@ test("legacy immediate preference save reports errors and restores renderer stat
 });
 test("a second instance quits before settings, game and installer modules initialize",()=>{
   const file=path.join(__dirname,"../src/index.js"),calls=[],app={name:"tfx-launcher",setPath:()=>{},getPath:()=>"D:/tfx-test",requestSingleInstanceLock:()=>false,quit:()=>calls.push("quit")};
-  vm.runInNewContext(fs.readFileSync(file,"utf8"),{require:id=>{if(id==="path")return path;if(id==="electron")return{app};throw Error("Second instance loaded "+id);},process:{argv:[]},__dirname:path.dirname(file)});assert.deepEqual(calls,["quit"]);
+  vm.runInNewContext(fs.readFileSync(file,"utf8"),{require:id=>{if(id==="path")return path;if(id==="electron")return{app};if(id==="./modules/launcher-version")return()=>"1.0.7";throw Error("Second instance loaded "+id);},process:{argv:[]},__dirname:path.dirname(file)});assert.deepEqual(calls,["quit"]);
 });
 function transport(body,headers={}){return{get(_url,_options,callback){const req=new EventEmitter();req.destroy=()=>{};req.setTimeout=()=>req;queueMicrotask(()=>{const res=new (require("stream").PassThrough)();res.statusCode=200;res.headers=headers;callback(res);res.end(body);});return req;}};}
 test("community servers decode compressed data with bounded public transport",async()=>{

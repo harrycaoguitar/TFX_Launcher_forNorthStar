@@ -39,7 +39,7 @@ function persistDiagnostic(report) {
     finally {diagnosticWrite = null;}
   })();
 }
-const diagnostics = new LaunchDiagnostics({appVersion:app.getVersion?.() || require("../../package.json").version, onChange:report => send("launch-diagnostic", report), persist:persistDiagnostic});
+const diagnostics = new LaunchDiagnostics({appVersion:require("./launcher-version")(), onChange:report => send("launch-diagnostic", report), persist:persistDiagnostic});
 try {
   const filename = diagnosticFilename();
   if (fs.existsSync(filename)) {

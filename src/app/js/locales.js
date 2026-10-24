@@ -27,7 +27,7 @@ window.VyraLocales = {
     'settings.restore.failure':['未能保存，原设置已保留。请重试。','Could not save. Your previous settings are unchanged. Try again.'],
     'settings.restartOnly':['重新启动 TFX。','Restart TFX.'],
     'settings.previewSaveHint':['取消只撤销未保存的预览；恢复默认会立即保存。','Cancel discards unsaved previews. Restoring defaults saves immediately.'],
-    'app.preview':['1.0.5','1.0.5'],
+    'app.preview':['—','—'],
     'appUpdate.title':['应用更新','App updates'],
     'appUpdate.ready':['从 GitHub Releases 检查 TFX 的正式版本。','Check GitHub Releases for a stable TFX release.'],
     'appUpdate.check':['检查更新','Check for updates'],

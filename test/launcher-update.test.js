@@ -1,6 +1,8 @@
 "use strict";
 const test=require("node:test"),assert=require("node:assert/strict"),{EventEmitter}=require("node:events");
+const Module=require("node:module"),originalLoad=Module._load;Module._load=function(request,parent,isMain){if(request==="electron")return{app:{getVersion:()=>"1.0.7"}};return originalLoad.call(this,request,parent,isMain);};
 const {API_URL,REPOSITORY,parseVersion,compareVersions,isReleaseURL,isAssetURL,selectRelease,requestMetadata,createUpdater,register}=require("../src/modules/launcher-update");
+Module._load=originalLoad;
 function release(version="v1.0.0"){
  const name=`TFX-Launcher-${version}.exe`;
  return {tag_name:version,html_url:`https://github.com/${REPOSITORY}/releases/tag/${version}`,draft:false,prerelease:false,assets:[{name,size:123456,state:"uploaded",browser_download_url:`https://github.com/${REPOSITORY}/releases/download/${version}/${name}`} ]};

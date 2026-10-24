@@ -1,7 +1,7 @@
 "use strict";
 const fs=require("fs"),path=require("path"),{ipcMain}=require("electron"),win=require("../win"),settings=require("./settings");
 const {splitArguments}=require("./launch-session"),network=require("./northstar-region"),findgame=require("./findgame");
-const launcherVersion=require("../../package.json").version;
+const launcherVersion=require("./launcher-version")();
 function regularFile(filename,maxBytes) {
   try {const stat=fs.lstatSync(filename);return stat.isFile()&&!stat.isSymbolicLink()&&stat.size<=maxBytes;}catch(_){return false;}
 }
