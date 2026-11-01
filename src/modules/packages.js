@@ -7,7 +7,7 @@ const fs = require("fs");
 const {app, ipcMain, net} = require("electron");
 const settings = require("./settings");
 const region = require("./northstar-region");
-const {splitArguments, hasGame} = require("./launch-session");
+const {splitArguments} = require("./launch-session");
 const running = require("./is_running");
 const gate = require("./dds-operation-gate");
 const win = require("../win");
@@ -19,14 +19,16 @@ const downloadRequest = createRequest(net);
 
 function selection() {
 	const conf = settings();
-	if (!conf.gamepath || !fs.existsSync(conf.gamepath)) throw Object.assign(new Error("Select the installed Titanfall 2 folder first."), {code: "GAME_PATH"});
-	const launcher = path.join(conf.gamepath, "NorthstarLauncher.exe");
+	let gamePath;
+	try {gamePath = require("./game-roots").gameRootForServer(conf, require("./server-mod-profiles").selectedServer(conf));}
+	catch (error) {throw Object.assign(new Error(error.message), {code: error.code || "GAME_PATH"});}
+	const launcher = path.join(gamePath, "NorthstarLauncher.exe");
 	let launcherStat; try {launcherStat = fs.lstatSync(launcher);} catch (_) {}
 	if (!launcherStat?.isFile() || launcherStat.isSymbolicLink()) throw Object.assign(new Error("Install the selected Northstar client from the Play page before installing mods."), {code: "CLIENT_MISSING"});
-	return {gamePath: path.resolve(conf.gamepath), profileDirectory: region.resolveProfile(conf.gamepath, splitArguments(conf.nsargs || "")), region: require("./server-mod-profiles").selectedServer(conf), independentServerMods: conf.independentServerMods === true};
+	return {gamePath: path.resolve(gamePath), profileDirectory: region.resolveProfile(gamePath, splitArguments(conf.nsargs || "")), region: require("./server-mod-profiles").selectedServer(conf), independentServerMods: conf.independentServerMods === true};
 }
 function profilePath() {
-	try {return selection().profileDirectory;} catch (_) {return path.resolve(settings().gamepath || ".", "R2Northstar");}
+	return selection().profileDirectory;
 }
 function send(channel, value) {try {win().send(channel, value);} catch (_) {}}
 async function guard(captured) {
@@ -36,7 +38,7 @@ async function guard(captured) {
 	const after = selection();
 	if (after.gamePath.toLowerCase() !== captured.gamePath.toLowerCase() || after.profileDirectory.toLowerCase() !== captured.profileDirectory.toLowerCase() || after.region !== captured.region || after.independentServerMods !== captured.independentServerMods) throw Object.assign(new Error("The selected game profile changed. Retry installation."), {code: "PROFILE_CHANGED"});
 	if (!snapshot?.ok) throw Object.assign(new Error("Unable to check the game process. Retry after the game is closed."), {code: "PROCESS_QUERY"});
-	if (hasGame(snapshot)) throw Object.assign(new Error("Close Titanfall 2 before changing installed mods."), {code: "GAME_RUNNING"});
+	if (require("./game-roots").hasGame(snapshot, captured.gamePath)) throw Object.assign(new Error("Close Titanfall 2 in the selected game folder before changing installed mods."), {code: "GAME_RUNNING"});
 }
 const installer = createInstaller({
 	profile: selection,

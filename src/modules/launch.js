@@ -11,12 +11,16 @@ const win = require("../win");
 const gate = require("./dds-operation-gate");
 const running = require("./is_running");
 const findgame = require("./findgame");
+const gameRoots = require("./game-roots");
 const {LaunchConfirmation, splitArguments, hasGame} = require("./launch-session");
 const network = require("./northstar-region");
 const clients = require("./northstar-clients");
 const modCompatibility = require("./mod-compatibility");
 const {NorthstarReadiness} = require("./northstar-readiness");
 const ea = require("./ea-handoff");
+const eaAccount = require("./ea-account");
+const eaEmulator = require("./ea-emulator");
+const eaLaunchAdapter = require("./ea-emulator-launch");
 const {LaunchDiagnostics} = require("./launch-diagnostics");
 const diagnosticExport = require("./diagnostic-export");
 
@@ -177,7 +181,7 @@ ipcMain.on("launch-vanilla", () => {void launch("vanilla");});
 function launchError(code, message) {return Object.assign(Error(message), {code});}
 
 function preflight(conf, gameVersion, prepared = false) {
-  const root = findgame.validateGamePath(conf.gamepath);
+  const root = gameRoots.resolveGameRoot(conf, {gameVersion, region: network.normalize(conf.northstarRegion)});
   if (!root) throw launchError("GAME_DIRECTORY_INVALID", "游戏目录已失效或缺少 Titanfall2.exe，请重新选择游戏安装目录。");
   const directory = path.join(root, "r2");
   try {if (!fs.statSync(directory).isDirectory()) throw Error();}
@@ -215,15 +219,21 @@ async function launch(gameVersion) {
   diagnostics.begin(gameVersion,{officialMods:gameVersion === "vanilla" && settings().vanillaModsEnabled === true});
   diagnose(record, {});
   send("launch-status", {state: "starting", gameVersion});
-  let session = null, consoleController = null, clientPreparation = false, cleanMarker = null, cleanProxy = null;
+  let session = null, consoleController = null, clientPreparation = false, cleanMarker = null, cleanProxy = null, emulatorSession = null, launchConfirmed = false;
   try {
     const result = await gate.run("launch", async () => {
       if (require("./dds").busy) throw launchError("SKIN_OPERATION_BUSY", "DDS 安装或恢复正在进行，请完成后再启动游戏");
       const conf = {...settings()};
+      const selection = gameRoots.captureLaunchContext(conf, gameVersion);
+      const rootConf = gameRoots.withLaunchRoot(conf, selection);
+      const emulatorMode = conf.eaEmulator === true;
       diagnostics.update({region:network.normalize(conf.northstarRegion)});
       let plan = preflight(conf, gameVersion);
+      plan.region = selection.region;
+      plan = eaLaunchAdapter.resolve({enabled:emulatorMode, gameVersion, ...plan});
       let baseline = await baselineSnapshot();
-      if (hasGame(baseline)) throw launchError("GAME_ALREADY_RUNNING", "游戏或北极星启动进程已经运行，请等待启动完成或先退出游戏。");
+      if (hasGame(baseline, plan.root)) throw launchError("GAME_ALREADY_RUNNING", "所选游戏目录已有游戏或北极星启动进程，请先退出该目录中的游戏。");
+      if (!emulatorMode) try {await eaEmulator.stop();} catch (_) {}
       diagnostics.stage("preflight", "observed");
       // A cross-format skin switch can touch both the model index and DDS data.
       // Never start a game against an interrupted transaction between them.
@@ -234,11 +244,11 @@ async function launch(gameVersion) {
       clientPreparation = true;
       const selectionGuard=()=>{
         const current=settings();
-        if(current.gamepath!==conf.gamepath||current.nsargs!==conf.nsargs||current.independentServerMods!==conf.independentServerMods||current.vanillaModsEnabled!==conf.vanillaModsEnabled||current.modProfileServer!==conf.modProfileServer||network.normalize(current.northstarRegion)!==network.normalize(conf.northstarRegion))throw launchError("SELECTION_CHANGED", "客户端选择或游戏目录已改变，请重新启动。");
+        if(current.gamepath!==conf.gamepath||current.globalGamepath!==conf.globalGamepath||current.chinaSourceGamepath!==conf.chinaSourceGamepath||current.chinaInstallTarget!==conf.chinaInstallTarget||current.nsargs!==conf.nsargs||current.independentServerMods!==conf.independentServerMods||current.vanillaModsEnabled!==conf.vanillaModsEnabled||current.modProfileServer!==conf.modProfileServer||current.eaEmulator!==conf.eaEmulator||network.normalize(current.northstarRegion)!==network.normalize(conf.northstarRegion))throw launchError("SELECTION_CHANGED", "客户端选择或游戏目录已改变，请重新启动。");
       };
       const compatibilityGuard = async () => {
         const stopped = await baselineSnapshot();
-        if (hasGame(stopped)) throw launchError("GAME_ALREADY_RUNNING", "游戏已由其他程序启动，请先退出游戏后重试。");
+        if (hasGame(stopped, plan.root)) throw launchError("GAME_ALREADY_RUNNING", "所选游戏目录中的游戏已由其他程序启动，请先退出后重试。");
         selectionGuard();
       };
       let compatibility;
@@ -249,10 +259,12 @@ async function launch(gameVersion) {
       if (gameVersion === "northstar") {
         diagnostics.stage("client", "active");
         diagnose(record, {clientPreparation: "checking", region: network.normalize(conf.northstarRegion)});
-        const installed = await clients.ensure({conf, allowInstall: false, guard: selectionGuard});
+        const installed = await clients.ensure({conf: rootConf, allowInstall: false, guard: selectionGuard});
         diagnose(record, {clientPreparation: "ready", client: installed});
         diagnostics.update({clientVersion:installed.version});
         plan = preflight(conf, gameVersion, true);
+        plan.region = selection.region;
+        plan = eaLaunchAdapter.resolve({enabled:emulatorMode, gameVersion, ...plan});
         const profiles = require("./server-mod-profiles");
         const modConfiguration = await (conf.independentServerMods ? profiles.prepare : profiles.prepareShared)(plan.profileDirectory, network.normalize(conf.northstarRegion), {guard: compatibilityGuard});
         diagnose(record, {modConfiguration});
@@ -264,6 +276,7 @@ async function launch(gameVersion) {
         const installed = await require("./vanilla-client").ensure({conf,allowInstall:false,guard:compatibilityGuard});
         diagnostics.update({clientVersion:installed.version});
         plan = preflight(conf,gameVersion,true);
+        plan = eaLaunchAdapter.resolve({enabled:emulatorMode, gameVersion, ...plan});
         const modConfiguration = await require("./server-mod-profiles").prepareOfficial(plan.profileDirectory,{guard:compatibilityGuard,independent:conf.independentServerMods===true});
         diagnose(record,{clientPreparation:"ready",officialMods:true,client:installed,modConfiguration});
         compatibility = await modCompatibility.prepare(plan.profileDirectory,"vanilla",{guard:compatibilityGuard});
@@ -289,18 +302,27 @@ async function launch(gameVersion) {
       // Protection may await disk IO. Recheck before creating a process so an
       // external launch cannot slip through the renderer's older state.
       baseline = await baselineSnapshot();
-      if (hasGame(baseline)) throw launchError("GAME_ALREADY_RUNNING", "游戏已由其他程序启动，请等待启动完成或先退出游戏。");
+      if (hasGame(baseline, plan.root)) throw launchError("GAME_ALREADY_RUNNING", "所选游戏目录已有游戏或北极星启动进程，请先退出该目录中的游戏。");
       selectionGuard();
       // Console capability has already been checked against the selected DLL.
       // Its owned helper may initialize alongside EA, without touching game
       // files or spawning the game. Wait for both before the final fresh guard;
       // collect failures so a prepared helper always reaches the cleanup path.
       diagnostics.stage("ea", "active");
-      const preparations = await Promise.allSettled([ea.prepare({snapshot: () => running.snapshot(), initial: baseline, guard: selectionGuard, onStage(stage, detail) {
+      const platformPreparation = emulatorMode
+        ? (async () => {
+            send("launch-status", {state:"starting", gameVersion, phase:"prepare-ea"});
+            const profile = await eaAccount.launchProfile();
+            emulatorSession = await eaEmulator.start({root:plan.root, profile, contentId:"1039093", log(detail) { diagnose(record, {eaEmulator:detail}); }});
+            diagnose(record, {eaEmulation:"ready", eaPlayer:profile.playerName, eaEmulatorVersion:emulatorSession.gameVersion, eaEmulatorLocale:emulatorSession.locale});
+            return {cold:false, ready:true, emulated:true};
+          })()
+        : ea.prepare({snapshot: () => running.snapshot(), initial: baseline, root: plan.root, guard: selectionGuard, onStage(stage, detail) {
         diagnose(record, {eaPreparation: {stage, ...detail}});
         if (stage === "ready") diagnostics.stage("ea", "observed");
         if (stage !== "ready") send("launch-status", {state: "starting", gameVersion, phase: stage === "starting" ? "prepare-ea" : "wait-ea"});
-      }}), plan.usesLoader && !plan.quietConsole ? prepareLegacyConsole(record) : Promise.resolve(null)]);
+      }});
+      const preparations = await Promise.allSettled([platformPreparation, plan.usesLoader && !plan.quietConsole ? prepareLegacyConsole(record) : Promise.resolve(null)]);
       consoleController = preparations[1].status === "fulfilled" ? preparations[1].value : null;
       if (preparations[0].status === "rejected") throw preparations[0].reason;
       if (preparations[1].status === "rejected") throw preparations[1].reason;
@@ -309,17 +331,22 @@ async function launch(gameVersion) {
       // The platform wait may open EA's login/update UI. Repeat all guards
       // before spawning the selected game; no vanilla fallback is permitted.
       baseline = await baselineSnapshot();
-      if (hasGame(baseline)) throw launchError("GAME_ALREADY_RUNNING", "游戏已由其他程序启动，请等待启动完成或先退出游戏。");
+      if (hasGame(baseline, plan.root)) throw launchError("GAME_ALREADY_RUNNING", "所选游戏目录已有游戏或北极星启动进程，请先退出该目录中的游戏。");
       selectionGuard();
       if (gameVersion === "northstar") require("./server-mod-profiles").assertNorthstarReady(plan.profileDirectory, network.normalize(conf.northstarRegion));
       if (plan.officialMods) require("./server-mod-profiles").assertOfficialReady(plan.profileDirectory);
-      const steamRoute = plan.officialMods ? await require("./steam-game-launch").resolve(plan.root) : null;
-      const selectedExecutable = steamRoute?.executable || path.join(plan.root,plan.executable);
+      const steamRoute = !emulatorMode && plan.officialMods ? await require("./steam-game-launch").resolve(plan.root) : null;
+      const selectedExecutable = steamRoute?.executable || (path.isAbsolute(plan.executable) ? plan.executable : path.join(plan.root,plan.executable));
       const selectedArguments = [...(steamRoute?.argsPrefix || []),...plan.args];
+      const selectedEnvironment = emulatorSession ? {...process.env, ...emulatorSession.env} : process.env;
+      if (emulatorSession) {
+        const pathKey = Object.keys(selectedEnvironment).find(key => key.toLowerCase() === "path") || "Path";
+        selectedEnvironment[pathKey] = [path.join(plan.root, "bin", "x64_retail"), plan.root, selectedEnvironment[pathKey]].filter(Boolean).join(path.delimiter);
+      }
       baseline = await baselineSnapshot();
-      if (hasGame(baseline)) throw launchError("GAME_ALREADY_RUNNING", "游戏已由其他程序启动，请等待启动完成或先退出游戏。");
+      if (hasGame(baseline, plan.root)) throw launchError("GAME_ALREADY_RUNNING", "所选游戏目录已有游戏或北极星启动进程，请先退出该目录中的游戏。");
       selectionGuard();
-      diagnose(record,{platformDispatch:steamRoute ? "steam" : "direct"});
+      diagnose(record,{platformDispatch:steamRoute ? "steam" : "direct", eaEmulator:emulatorMode ? "lsx-3216" : "ea-app"});
       let attempt = 0;
       const spawnSelected = () => {
         const previousLog = plan.usesLoader ? latestGameLog(plan.profileDirectory) : null;
@@ -335,7 +362,7 @@ async function launch(gameVersion) {
         try {
         // This is the requested game window. SW_HIDE can propagate to the
         // engine Northstar loads in this same process and hide a healthy game.
-        const child = spawn(selectedExecutable, selectedArguments, {cwd: plan.root, windowsHide: false, detached: true, stdio: ["ignore", startup.fd, startup.fd]});
+        const child = spawn(selectedExecutable, selectedArguments, {cwd: plan.root, windowsHide: false, detached: true, env:selectedEnvironment, stdio: ["ignore", startup.fd, startup.fd]});
         child.once("spawn", () => {
           confirmation.spawned(ownedSession, child.pid);
           if (latestDiagnostic === record) {diagnostics.stage("spawn", "observed"); diagnostics.stage("game", "active");}
@@ -347,23 +374,28 @@ async function launch(gameVersion) {
         child.once("exit", (code, signal) => {
           diagnose(record, {childExit: {code, signal: signal || null, at: new Date().toISOString()}});
           confirmation.launcherExited(ownedSession, code, signal, child.pid);
+          if (emulatorSession) {
+            const activeEmulator = emulatorSession;
+            emulatorSession = null;
+            void activeEmulator.stop().finally(() => require("./background-tray").sessionEnded?.());
+          }
         });
         } catch (error) {consoleController?.cancel(); confirmation.fail(ownedSession, error);}
         finally {fs.closeSync(startup.fd);}
       };
-      session = confirmation.begin(baseline, {gameVersion,requireReady:plan.usesLoader,officialMods:plan.officialMods,allowBootstrapHandoff:plan.officialMods,platformDispatch:Boolean(steamRoute), retryHandoff: platform.cold && !steamRoute ? async retrySession => {
+      session = confirmation.begin(baseline, {root:plan.root, gameVersion,requireReady:plan.usesLoader,officialMods:plan.officialMods,allowBootstrapHandoff:plan.officialMods,platformDispatch:Boolean(steamRoute), retryHandoff: platform.cold && !steamRoute ? async retrySession => {
         if (confirmation.current !== retrySession) return;
         diagnose(record, {eaHandoffRetry: "checking"});
         send("launch-status", {state: "starting", gameVersion, phase: "retry-ea"});
         const acceptArrivingHandoff = async () => {
           const appeared = await baselineSnapshot();
-          if (!hasGame(appeared)) return false;
+          if (!hasGame(appeared, plan.root)) return false;
           confirmation.observe(appeared);
           diagnose(record, {eaHandoffRetry: "original-handoff-arrived"});
           send("launch-status", {state: "starting", gameVersion, phase: "wait-game"});
           return true;
         };
-        try {await ea.prepare({snapshot: () => running.snapshot(), guard: selectionGuard, forceWait: true, timeoutMs: 15000, settleMs: 1000});}
+        try {await ea.prepare({snapshot: () => running.snapshot(), root: plan.root, guard: selectionGuard, forceWait: true, timeoutMs: 15000, settleMs: 1000});}
         catch (error) {
           if (error.code === "GAME_ALREADY_RUNNING" && await acceptArrivingHandoff()) return;
           throw error;
@@ -374,7 +406,7 @@ async function launch(gameVersion) {
         selectionGuard();
         consoleController = plan.usesLoader && !plan.quietConsole ? await prepareLegacyConsole(record) : null;
         const stopped = await baselineSnapshot();
-        if (hasGame(stopped) && await acceptArrivingHandoff()) {consoleController?.cancel(); return;}
+        if (hasGame(stopped, plan.root) && await acceptArrivingHandoff()) {consoleController?.cancel(); return;}
         selectionGuard();
         if (gameVersion === "northstar") require("./server-mod-profiles").assertNorthstarReady(plan.profileDirectory, network.normalize(conf.northstarRegion));
         if (plan.officialMods) require("./server-mod-profiles").assertOfficialReady(plan.profileDirectory);
@@ -385,6 +417,7 @@ async function launch(gameVersion) {
       spawnSelected();
       const confirmed = await session.promise;
       if (!confirmed.ok) throw Object.assign(Error(confirmed.error), confirmed.code ? {code:confirmed.code} : {});
+      launchConfirmed = true;
       diagnostics.finish();
       diagnose(record, {state: "confirmed", confirmedAt: new Date().toISOString(), confirmation: {pid: confirmed.pid, image: confirmed.image}});
       send("launch-status", {state: "confirmed", gameVersion, pid: confirmed.pid});
@@ -395,7 +428,10 @@ async function launch(gameVersion) {
     await diagnosticWrite;
     if (cleanProxy) {await cleanProxy.restore(); cleanProxy = null;}
     if (cleanMarker) {await cleanMarker.restore(); cleanMarker = null;}
-    if (settings().exitAfterLaunch === true) app.quit();
+    if (settings().exitAfterLaunch === true) {
+      const backgroundTray = require("./background-tray");
+      if (!(emulatorSession && backgroundTray.requestExit("exit-after-launch"))) app.quit();
+    }
     return result;
   } catch (error) {
     if (session) confirmation.fail(session, error);
@@ -409,6 +445,11 @@ async function launch(gameVersion) {
     return result;
   } finally {
     consoleController?.cancel(); activeReadiness = null;
+    if (emulatorSession && !launchConfirmed) {
+      const activeEmulator = emulatorSession;
+      emulatorSession = null;
+      try {await activeEmulator.stop();} catch (_) {}
+    }
     if (cleanProxy) try {await cleanProxy.restore();} catch (error) {console.error(error.message);send("launch-guard-result",{ok:false,scope:"client",error:error.message,code:error.code||"CLEAN_LAUNCH_RECOVERY"});}
     if (cleanMarker) try {await cleanMarker.restore();} catch (error) {console.error(error.message);send("launch-guard-result",{ok:false,scope:"client",error:error.message,code:error.code||"CLEAN_LAUNCH_RECOVERY"});}
     launching = false;
@@ -416,3 +457,4 @@ async function launch(gameVersion) {
 }
 
 module.exports = launch;
+

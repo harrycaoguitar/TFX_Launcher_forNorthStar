@@ -262,8 +262,8 @@
     },
     {
       "path": "mods/NP.VanillaPlus/mod/scripts/vscripts/ui/menu_set_vanillaplus_version.nut",
-      "bytes": 710,
-      "sha256": "123f5bfb034d0a5954500eb119ebddbd5880e02553f5a70ffeea6bcd8d22a84f"
+      "bytes": 500,
+      "sha256": "eccbd7e49d23c6aafa307452722127e35a435fdc15a2733406fe2d8cbee9bde1"
     },
     {
       "path": "mods/NP.VanillaPlus/mod/scripts/vscripts/ui/ns_controller_prompts.nut",
@@ -277,8 +277,8 @@
     },
     {
       "path": "mods/NP.VanillaPlus/mod/scripts/vscripts/ui/ns_menu_modmenu.nut",
-      "bytes": 19812,
-      "sha256": "3bc9cb0fc3798bd4264e03f0ed9ddd7a4ce9f59b728a774113af657901a77e62"
+      "bytes": 19116,
+      "sha256": "b6582d88531499b34356268eb9ff13556aa23fd5374f056fa4ddf33622f6b712"
     },
     {
       "path": "mods/NP.VanillaPlus/mod/scripts/vscripts/ui/ns_menu_modsettings.nut",

@@ -1,0 +1,164 @@
+BASELINE
+COMMAND: ['node', 'D:\\文档\\ChatGPT\\北极星项目ttf2\\release-1.1.0\\verification\\version-probe.cjs', 'D:\\文档\\ChatGPT\\北极星项目ttf2\\release-1.1.0\\verification\\package.baseline.json']
+STDOUT:
+{"version":"1.0.7","main":"src/index.js","productName":"TFX Launcher"}
+
+STDERR:
+
+EXIT: 0
+MODIFIED
+COMMAND: ['node', 'D:\\文档\\ChatGPT\\北极星项目ttf2\\release-1.1.0\\verification\\version-probe.cjs', 'D:\\文档\\ChatGPT\\北极星项目ttf2\\release-1.1.0\\source\\release-verification\\package.modified.json']
+STDOUT:
+{"version":"1.1.0","main":"src/index.js","productName":"TFX Launcher"}
+
+STDERR:
+
+EXIT: 0
+ROLLBACK execution
+COMMAND: ['D:/Git/bin/bash.exe', '/d/文档/ChatGPT/北极星项目ttf2/release-1.1.0/source/release-verification/ROLLBACK.sh', '/d/文档/ChatGPT/北极星项目ttf2/release-1.1.0/verification/rollback-copy.json']
+STDOUT:
+
+STDERR:
+
+EXIT: 0
+ROLLBACK
+COMMAND: ['node', 'D:\\文档\\ChatGPT\\北极星项目ttf2\\release-1.1.0\\verification\\version-probe.cjs', 'D:\\文档\\ChatGPT\\北极星项目ttf2\\release-1.1.0\\verification\\rollback-copy.json']
+STDOUT:
+{"version":"1.0.7","main":"src/index.js","productName":"TFX Launcher"}
+
+STDERR:
+
+EXIT: 0
+DIFF reconstruct
+COMMAND: ['git', 'apply', '--unsafe-paths', '--directory=D:\\文档\\ChatGPT\\北极星项目ttf2\\release-1.1.0\\verification\\patch-check', 'D:\\文档\\ChatGPT\\北极星项目ttf2\\release-1.1.0\\source\\release-verification\\package.diff']
+STDOUT:
+
+STDERR:
+D:/文档/ChatGPT/北极星项目ttf2/release-1.1.0/source/release-verification/package.diff:31: trailing whitespace.
+{
+D:/文档/ChatGPT/北极星项目ttf2/release-1.1.0/source/release-verification/package.diff:32: trailing whitespace.
+  "name": "tfx-launcher",
+D:/文档/ChatGPT/北极星项目ttf2/release-1.1.0/source/release-verification/package.diff:33: trailing whitespace.
+  "productName": "TFX Launcher",
+D:/文档/ChatGPT/北极星项目ttf2/release-1.1.0/source/release-verification/package.diff:34: trailing whitespace.
+  "version": "1.1.0",
+D:/文档/ChatGPT/北极星项目ttf2/release-1.1.0/source/release-verification/package.diff:35: trailing whitespace.
+  "description": "泰坦陨落 2 · 北极星、DDS 与 VTF 皮肤启动器",
+warning: squelched 28 whitespace errors
+warning: 33 lines add whitespace errors.
+
+EXIT: 0
+HTML ROLLBACK execution
+COMMAND: ['D:/Git/bin/bash.exe', '/d/文档/ChatGPT/北极星项目ttf2/release-1.1.0/source/release-verification/ROLLBACK.sh', '/d/文档/ChatGPT/北极星项目ttf2/release-1.1.0/verification/rollback-copy.html']
+STDOUT:
+
+STDERR:
+
+EXIT: 0
+HTML BASELINE
+COMMAND: ['C:\\Users\\Administrator\\AppData\\Local\\Programs\\Python\\Python312\\python.exe', 'D:\\文档\\ChatGPT\\北极星项目ttf2\\release-1.1.0\\verification\\test-page-structure.py', 'D:\\文档\\ChatGPT\\北极星项目ttf2\\release-1.1.0\\verification\\index.baseline.html']
+STDOUT:
+{"vanillaAncestors": ["mainContainer", "nsContent"], "visibleWhenNorthstarHidden": false}
+
+STDERR:
+Traceback (most recent call last):
+  File "D:\文档\ChatGPT\北极星项目ttf2\release-1.1.0\verification\test-page-structure.py", line 18, in <module>
+    assert p.vanilla_ancestors is not None and 'nsContent' not in p.vanilla_ancestors, 'Vanilla is inside the hidden Northstar container'
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Vanilla is inside the hidden Northstar container
+
+EXIT: 1
+HTML MODIFIED
+COMMAND: ['C:\\Users\\Administrator\\AppData\\Local\\Programs\\Python\\Python312\\python.exe', 'D:\\文档\\ChatGPT\\北极星项目ttf2\\release-1.1.0\\verification\\test-page-structure.py', 'D:\\文档\\ChatGPT\\北极星项目ttf2\\release-1.1.0\\source\\src\\app\\index.html']
+STDOUT:
+{"vanillaAncestors": ["mainContainer"], "visibleWhenNorthstarHidden": true}
+
+STDERR:
+
+EXIT: 0
+HTML ROLLBACK
+COMMAND: ['C:\\Users\\Administrator\\AppData\\Local\\Programs\\Python\\Python312\\python.exe', 'D:\\文档\\ChatGPT\\北极星项目ttf2\\release-1.1.0\\verification\\test-page-structure.py', 'D:\\文档\\ChatGPT\\北极星项目ttf2\\release-1.1.0\\verification\\rollback-copy.html']
+STDOUT:
+{"vanillaAncestors": ["mainContainer", "nsContent"], "visibleWhenNorthstarHidden": false}
+
+STDERR:
+Traceback (most recent call last):
+  File "D:\文档\ChatGPT\北极星项目ttf2\release-1.1.0\verification\test-page-structure.py", line 18, in <module>
+    assert p.vanilla_ancestors is not None and 'nsContent' not in p.vanilla_ancestors, 'Vanilla is inside the hidden Northstar container'
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Vanilla is inside the hidden Northstar container
+
+EXIT: 1
+HTML DIFF reconstruct
+COMMAND: ['git', 'apply', '--unsafe-paths', '--directory=D:\\文档\\ChatGPT\\北极星项目ttf2\\release-1.1.0\\verification\\patch-check', 'D:\\文档\\ChatGPT\\北极星项目ttf2\\release-1.1.0\\source\\release-verification\\index.diff']
+STDOUT:
+
+STDERR:
+
+EXIT: 0
+Changed field: package.json.version 1.0.7 -> 1.1.0
+Added fields: scripts, devDependencies.electron
+Original SHA256: 2ebebca8ffb6e868dc9ee9b5f53959f28bee084afbaa64aa715bebad3e090881
+Modified SHA256: 88560960a5329a332e9e513152c9d93e5d3e1c1ea594a00a88840dabb4566143
+Rollback SHA256: 2ebebca8ffb6e868dc9ee9b5f53959f28bee084afbaa64aa715bebad3e090881
+Changed HTML: close nsContent before tfContent, making the pages siblings.
+ASAR runtime files: 445
+Changed runtime files: ['package.json', 'src/app/index.html']
+All other src files, offline payloads and production dependencies match baseline bytes.
+package.modified.json: D:\文档\ChatGPT\北极星项目ttf2\release-1.1.0\source\release-verification\package.modified.json
+SHA256: 88560960a5329a332e9e513152c9d93e5d3e1c1ea594a00a88840dabb4566143
+package.diff: D:\文档\ChatGPT\北极星项目ttf2\release-1.1.0\source\release-verification\package.diff
+SHA256: 5415d4229595c5c273182b988e6336ec3dcc1624b3cef1de964845d79c6f1693
+index.modified.html: D:\文档\ChatGPT\北极星项目ttf2\release-1.1.0\source\release-verification\index.modified.html
+SHA256: 9f637372c5c4ffdcdf65973a3aa642421018000ec3b0fb33bd2845f52450bcb3
+index.diff: D:\文档\ChatGPT\北极星项目ttf2\release-1.1.0\source\release-verification\index.diff
+SHA256: 82fdd629353767e189a4aecbcede72669f6a0cd461a19ce92b6f0693f4fa7fc3
+ROLLBACK.sh: D:\文档\ChatGPT\北极星项目ttf2\release-1.1.0\source\release-verification\ROLLBACK.sh
+SHA256: c30a2101b43d1903e45fd28f03ca33fdd7e70c5c57ce90c8a28f780a45ccdc5e
+Additional build evidence: release-1.1.0/verification/final-build.log, installer-test.json, smoke.json
+Actual game sessions and EA service interactions were not retested in this release.
+
+FINAL INSTALLER TEST:
+{
+  "InstallExitCode": 0,
+  "InstalledDirectory": "D:\\文档\\ChatGPT\\北极星项目ttf2\\release-1.1.0\\安装验证 v110 自选目录\\TFX Launcher",
+  "InstallerLanguage": "1033",
+  "FileVersion": "1.1.0.0",
+  "ProductVersion": "1.1.0.0",
+  "AppAsarSHA256": "76540044895C30EB46101C825822718F72070ED19B1718B3EE3A8024F6D53468",
+  "VerifiedFiles": 121,
+  "DesktopShortcut": true,
+  "StartMenuShortcut": true,
+  "AppProcessId": 11316,
+  "AppExecutable": "D:\\文档\\ChatGPT\\北极星项目ttf2\\release-1.1.0\\安装验证 v110 自选目录\\TFX Launcher\\TFX-Launcher.exe",
+  "PendingUninstall": false,
+  "UninstallExitCode": 0,
+  "ApplicationRemoved": true,
+  "ExtraFilesPreserved": true,
+  "ProfilePreserved": true
+}
+
+FINAL UI SMOKE:
+{
+  "url": "file:///D:/%E6%96%87%E6%A1%A3/ChatGPT/%E5%8C%97%E6%9E%81%E6%98%9F%E9%A1%B9%E7%9B%AEttf2/release-1.1.0/%E5%AE%89%E8%A3%85%E9%AA%8C%E8%AF%81%20v110%20%E8%87%AA%E9%80%89%E7%9B%AE%E5%BD%95/TFX%20Launcher/resources/app.asar/src/app/index.html",
+  "initial": {
+    "title": "TFX Launcher",
+    "version": "1.1.0",
+    "aboutVersion": "v1.1.0",
+    "mode": "home",
+    "visibleElements": 60,
+    "bridge": "object"
+  },
+  "vanilla": {
+    "selected": "official",
+    "view": "home",
+    "contentDisplay": "block",
+    "visibleElements": 57,
+    "launchVisible": true
+  },
+  "northstarReturn": {
+    "selected": "cn",
+    "launchVisible": true
+  },
+  "eaServiceNotStarted": true
+}

@@ -65,7 +65,7 @@
   const sources = new WeakMap();
   const attributeSources = new WeakMap();
   const attributes = ['title','placeholder','aria-label'];
-  const ignored = 'script,style,textarea,[data-i18n-ignore],#nsRelease,#vpReleaseNotes,#settingsGamePath,#ddsPackageName,#vtfPackageName,#ddsFileList strong,#vtfFileList strong,#browserEntries .description,#browserEntries .name,#browserEntries .title,#modsdiv .el .name,#modsdiv .el .title,#modsdiv .el .description,#uiLanguage option';
+  const ignored = 'script,style,textarea,[data-i18n-ignore],#nsRelease,#vpReleaseNotes,#settingsGamePath,#settingsGlobalGamePath,#ddsPackageName,#vtfPackageName,#ddsFileList strong,#vtfFileList strong,#browserEntries .description,#browserEntries .name,#browserEntries .title,#modsdiv .el .name,#modsdiv .el .title,#modsdiv .el .description,#uiLanguage option';
   let current = normalize(fold.loadSettings().data.uiLanguage);
   let pending = 0;
   const changedRoots = new Set();

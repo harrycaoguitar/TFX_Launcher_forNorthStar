@@ -10,8 +10,19 @@ global function AddNorthstarModMenu_MainMenuFooter
 global function ReloadMods
 
 
+struct modData {
+	string name = ""
+	string version = ""
+	string description = ""
+	string downloadLink = ""
+	int loadPriority = 0
+	bool enabled = false
+	bool requiredOnClient = false
+	array<string> conVars = []
+}
+
 struct panelContent {
-	ModInfo& mod
+	modData& mod
 	bool isHeader = false
 }
 
@@ -33,10 +44,10 @@ struct {
 	var menu
 	array<var> panels
 	int scrollOffset = 0
-	array<ModInfo> enabledMods
+	array<string> enabledMods
 	var currentButton
 	string searchTerm
-	ModInfo& lastMod
+	modData& lastMod
 } file
 
 const int PANELS_LEN = 15
@@ -146,22 +157,11 @@ void function OnModMenuClosed()
 	}
 	catch ( ex ) {}
 
-	array<ModInfo> current = GetEnabledModsArray()
+	array<string> current = GetEnabledModsArray()
 	bool reload
-	foreach ( ModInfo mod in current )
+	foreach ( string mod in current )
 	{
-		bool notFound = true
-
-		foreach ( ModInfo enMod in file.enabledMods )
-		{
-			if ( mod.name == enMod.name && mod.version == enMod.version )
-			{
-				notFound = false
-				break
-			}
-		}
-
-		if ( notFound )
+		if ( file.enabledMods.find( mod ) == -1 )
 		{
 			reload = true
 			break
@@ -209,35 +209,18 @@ void function OnModButtonFocused( var button )
 
 void function OnModButtonPressed( var button )
 {
-	ModInfo mod = file.mods[ int ( Hud_GetScriptID( Hud_GetParent( button ) ) ) + file.scrollOffset - 1 ].mod
+	modData mod = file.mods[ int ( Hud_GetScriptID( Hud_GetParent( button ) ) ) + file.scrollOffset - 1 ].mod
 	string modName = mod.name
 	if ( StaticFind( modName ) && mod.enabled )
 		CoreModToggleDialog( modName )
 	else
 	{
-		NSSetModEnabled( modName, mod.version, !mod.enabled )
+		NSSetModEnabled( modName, !NSIsModEnabled( modName ) )
 
-		// retrieve state of the mod that just got toggled
-		array<ModInfo> infos = NSGetModInformation( mod.name )
-		foreach ( modInfo in infos )
-		{
-			if ( modInfo.name != modName || modInfo.version != mod.version )
-			{
-				continue
-			}
-
-			// Update UI mod state
-			file.mods[ int ( Hud_GetScriptID( Hud_GetParent( button ) ) ) + file.scrollOffset - 1 ].mod = modInfo
-
-			var panel = file.panels[ int ( Hud_GetScriptID( Hud_GetParent( button ) ) ) - 1 ]
-			SetControlBoxColor( Hud_GetChild( panel, "ControlBox" ), modInfo )
-			SetControlBarColor( modInfo )
-			SetModEnabledHelperImageAsset( Hud_GetChild( panel, "EnabledImage" ), modInfo )
-			// RefreshMods()
-			UpdateListSliderPosition()
-			UpdateListSliderHeight()
-			break
-		}
+		// Refresh the cached state through the Northstar 1.18 name-based API.
+		UpdateList()
+		UpdateListSliderPosition()
+		UpdateListSliderHeight()
 	}
 }
 
@@ -253,7 +236,7 @@ void function OnAuthenticationAgreementButtonPressed( var button )
 
 void function OnModLinkButtonPressed( var button )
 {
-	ModInfo mod = file.mods[ int ( Hud_GetScriptID( Hud_GetParent( file.currentButton ) ) ) + file.scrollOffset - 1 ].mod
+	modData mod = file.mods[ int ( Hud_GetScriptID( Hud_GetParent( file.currentButton ) ) ) + file.scrollOffset - 1 ].mod
 	string link = mod.downloadLink
 	if ( link.find("http://") != 0 && link.find("https://") != 0 )
 		link = "http://" + link // links without the http or https protocol get opened in the internal browser
@@ -307,34 +290,18 @@ void function CoreModToggleDialog( string mod )
 
 void function DisableMod()
 {
-	ModInfo mod = file.mods[ int ( Hud_GetScriptID( Hud_GetParent( file.currentButton ) ) ) + file.scrollOffset - 1 ].mod
+	modData mod = file.mods[ int ( Hud_GetScriptID( Hud_GetParent( file.currentButton ) ) ) + file.scrollOffset - 1 ].mod
 	string modName = mod.name
-	NSSetModEnabled( modName, mod.version, false )
-
-	// retrieve state of the mod that just got toggled
-	array<ModInfo> infos = NSGetModInformation( mod.name )
-	foreach ( modInfo in infos )
-	{
-		if ( modInfo.name != modName || modInfo.version != mod.version )
-		{
-			continue
-		}
-		var panel = file.panels[ int ( Hud_GetScriptID( Hud_GetParent( file.currentButton ) ) ) - 1]
-		SetControlBoxColor( Hud_GetChild( panel, "ControlBox" ), modInfo )
-		SetControlBarColor( modInfo )
-		SetModEnabledHelperImageAsset( Hud_GetChild( panel, "EnabledImage" ), modInfo )
-
-		RefreshMods()
-		break
-	}
+	NSSetModEnabled( modName, false )
+	UpdateList()
 }
 
-array<ModInfo> function GetEnabledModsArray()
+array<string> function GetEnabledModsArray()
 {
-	array<ModInfo> enabledMods
-	foreach ( ModInfo mod in NSGetModsInformation() )
+	array<string> enabledMods
+	foreach ( string mod in NSGetModNames() )
 	{
-		if ( mod.enabled )
+		if ( NSIsModEnabled( mod ) )
 			enabledMods.append( mod )
 	}
 	return enabledMods
@@ -358,30 +325,29 @@ void function UpdateList()
 
 void function RefreshMods()
 {
-	array<ModInfo> mods = NSGetModsInformation()
+	array<string> mods = NSGetModNames()
 	file.mods.clear()
 
 	bool reverse = GetConVarBool( "modlist_reverse" )
 
-	int lastLoadPriority = reverse ? mods.top().loadPriority + 1 : -1
+	int lastLoadPriority = reverse ? NSGetModLoadPriority( mods.top() ) + 1 : -1
 	string searchTerm = Hud_GetUTF8Text( Hud_GetChild( file.menu, "BtnModsSearch" ) ).tolower()
 
 	for ( int i = reverse ? mods.len() - 1 : 0;
 		reverse ? ( i >= 0 ) : ( i < mods.len() );
 		i += ( reverse ? -1 : 1) )
 	{
-		ModInfo mod = mods[i]
-		string modName = mod.name
+		string modName = mods[i]
+		bool enabled = NSIsModEnabled( modName )
+		bool required = NSIsModRequiredOnClient( modName )
 
 		// Do not display remote mods
-		if ( mod.isRemote )
+		if ( NSIsModRemote( modName ) )
 			continue
 
 		if ( searchTerm.len() && modName.tolower().find( searchTerm ) == null )
 			continue
 
-		bool enabled = mod.enabled
-		bool required = mod.requiredOnClient
 		switch ( GetConVarInt( "filter_mods" ) )
 		{
 			case filterShow.ONLY_ENABLED:
@@ -402,11 +368,11 @@ void function RefreshMods()
 				break
 		}
 
-		int pr = mod.loadPriority
+		int pr = NSGetModLoadPriority( modName )
 
 		if ( reverse ? pr < lastLoadPriority : pr > lastLoadPriority )
 		{
-			ModInfo m
+			modData m
 			m.name = pr.tostring()
 
 			panelContent c
@@ -417,6 +383,15 @@ void function RefreshMods()
 		}
 
 
+		modData mod
+		mod.name = modName
+		mod.version = NSGetModVersionByModName( modName )
+		mod.description = NSGetModDescriptionByModName( modName )
+		mod.downloadLink = NSGetModDownloadLinkByModName( modName )
+		mod.loadPriority = pr
+		mod.enabled = enabled
+		mod.requiredOnClient = required
+		mod.conVars = NSGetModConvarsByModName( modName )
 		panelContent c
 		c.mod = mod
 
@@ -432,7 +407,7 @@ void function DisplayModPanels()
 			break
 
 		panelContent c = file.mods[ file.scrollOffset + i ]
-		ModInfo mod = c.mod
+		modData mod = c.mod
 		var btn = Hud_GetChild( panel, "BtnMod" )
 		var headerLabel = Hud_GetChild( panel, "Header" )
 		var box = Hud_GetChild( panel, "ControlBox" )
@@ -466,7 +441,7 @@ void function DisplayModPanels()
 			Hud_SetVisible( box, true )
 			Hud_SetVisible( line, false )
 
-			Hud_SetVisible( warning, mod.requiredOnClient )
+		Hud_SetVisible( warning, mod.requiredOnClient )
 
 			SetModEnabledHelperImageAsset( enabledImage, c.mod )
 		}
@@ -474,7 +449,7 @@ void function DisplayModPanels()
 	}
 }
 
-void function SetModEnabledHelperImageAsset( var panel, ModInfo mod )
+void function SetModEnabledHelperImageAsset( var panel, modData mod )
 {
 	if( mod.enabled )
 		RuiSetImage( Hud_GetRui( panel ), "basicImage", $"rui/menu/common/merit_state_success" )
@@ -484,13 +459,13 @@ void function SetModEnabledHelperImageAsset( var panel, ModInfo mod )
 	Hud_SetVisible( panel, true )
 }
 
-void function SetControlBoxColor( var box, ModInfo mod )
+void function SetControlBoxColor( var box, modData mod )
 {
 	var rui = Hud_GetRui( box )
 	RuiSetFloat3(rui, "basicImageColor", GetControlColorForMod( mod ) )
 }
 
-void function SetControlBarColor( ModInfo mod )
+void function SetControlBarColor( modData mod )
 {
 	var bar_element = Hud_GetChild( file.menu, "ModEnabledBar" )
 	var bar = Hud_GetRui( bar_element )
@@ -498,7 +473,7 @@ void function SetControlBarColor( ModInfo mod )
 	Hud_SetVisible( bar_element, true )
 }
 
-vector function GetControlColorForMod( ModInfo mod )
+vector function GetControlColorForMod( modData mod )
 {
 	if ( mod.enabled )
 		switch ( GetConVarInt( "colorblind_mode" ) )
@@ -524,7 +499,7 @@ vector function GetControlColorForMod( ModInfo mod )
 
 string function FormatModDescription()
 {
-	ModInfo mod = file.lastMod
+	modData mod = file.lastMod
 	string modName = mod.name
 	string ret
 	// version

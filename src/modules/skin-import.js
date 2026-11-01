@@ -45,6 +45,7 @@ function classify(entries){
   if(count>SKIN_FILES||bytes>MAX_BYTES||(format==="dds"&&bytes>DDS_BYTES))throw Error(messages.limit);
   return format;
 }
+function isIcepickDefinition(definition){return Boolean(definition&&typeof definition==="object"&&(definition.ApiId||definition.CustomScripts||definition.CustomScript));}
 function parseListing(listing){
   const entries=[],seen=new Set();
   for(const block of String(listing).split(/\r?\n\r?\n/)){
@@ -82,7 +83,7 @@ async function scanDirectory(root){
 }
 function signature(stat){return `${stat.dev}:${stat.ino}:${stat.size}:${stat.mtimeMs}`;}
 class SkinImporter{
-  constructor({dds,vtf,mods,stagingDir}){this.engines={dds,vtf};this.mods=mods;this.stagingDir=stagingDir||path.join(dds.baseDir,"unified-import");this.busy=false;this.pendingMod=null;}
+	constructor({dds,vtf,mods,icepick,BrowserWindow,stagingDir}){this.engines={dds,vtf};this.mods=mods;this.icepick=icepick;this.BrowserWindow=BrowserWindow;this.stagingDir=stagingDir||path.join(dds.baseDir,"unified-import");this.busy=false;this.pendingMod=null;}
   isBusy(){return this.busy||Object.values(this.engines).some(engine=>engine.isImportBusy())||Boolean(this.mods?.isImportBusy?.());}
   reserve(value){for(const engine of Object.values(this.engines))engine.sharedImportBusy=value;if(this.mods)this.mods.sharedImportBusy=value;}
   invalidate(){for(const engine of Object.values(this.engines))engine.invalidateSelection();}
@@ -138,16 +139,29 @@ class SkinImporter{
           try{await this.engines.vtf.tool(["x","-y","-sccUTF-8","-o"+input,source]);}catch{throw Error(messages.archive);}
         }
         const actual=await scanDirectory(input),declared=new Map(entries.filter(entry=>!entry.directory).map(entry=>[entry.name.toLowerCase(),entry.bytes]));
+        const sourceName=path.basename(source),baseName=stat.isDirectory()?sourceName:path.basename(source,path.extname(source));
         if(classify(actual)!=="mod"||actual.length!==declared.size||actual.some(entry=>declared.get(entry.name.toLowerCase())!==entry.bytes))throw Error(messages.changed);
-        const inspected=await inspectModDirectory(input,{sourceName:base});
+        const inspected=await inspectModDirectory(input,{sourceName:baseName});
         if(stat.isDirectory()){
           const current=await scanDirectory(source),original=new Map(entries.map(entry=>[entry.name,entry.identity]));
           if(current.length!==entries.length||current.some(entry=>original.get(entry.name)!==entry.identity))throw Error(messages.changed);
         }else if(signature(await fsp.lstat(source))!==signature(stat))throw Error(messages.changed);
-        const id=crypto.randomBytes(18).toString("hex"),files=actual.map(({name,bytes})=>({name,bytes})),name=path.basename(source);
-        this.pendingMod={id,input,temporary,digest:await treeDigestAsync(input),name,names:inspected.names,files,destname:inspected.plan.length===1&&inspected.plan[0].directory===input?inspected.plan[0].folder:undefined};
+        const icepickDefinitionPath=inspected.plan.length===1?path.join(inspected.plan[0].directory,"mod.json"):"";
+        let icepickDefinition=null;
+        if(icepickDefinitionPath)try{icepickDefinition=JSON.parse(await fsp.readFile(icepickDefinitionPath,"utf8"));}catch{}
+        if(isIcepickDefinition(icepickDefinition)){
+          if(typeof this.icepick?.installSource!=="function")throw Error("Icepick 安装服务暂不可用，请重新启动启动器后再试。");
+			const parent=this.BrowserWindow?.fromWebContents?.(event?.sender);
+          const icepickName=String(icepickDefinition.ApiId||icepickDefinition.Name||baseName);
+			const installed=await this.icepick.installSource(inspected.plan[0].directory,icepickName,{parent});
+          if(!installed?.ok)return {ok:false,format:"icepick",sourceName,error:installed?.error||"Icepick Mod 未安装。",canceled:Boolean(installed?.canceled)};
+          const displayName=installed.name||baseName;
+          return {ok:true,format:"icepick",sourceName,installed:true,state:{ok:true,package:{id:displayName,name:displayName}}};
+        }
+        const id=crypto.randomBytes(18).toString("hex"),files=actual.map(({name,bytes})=>({name,bytes}));
+        this.pendingMod={id,input,temporary,digest:await treeDigestAsync(input),name:sourceName,names:inspected.names,files,destname:inspected.plan.length===1&&inspected.plan[0].directory===input?inspected.plan[0].folder:undefined};
         temporary=null;
-        return {ok:true,format,sourceName:name,state:{ok:true,package:{id,name,sourcePath:source,files,count:files.length,bytes:files.reduce((sum,file)=>sum+file.bytes,0),modCount:inspected.modCount,modNames:inspected.names}}};
+        return {ok:true,format,sourceName,state:{ok:true,package:{id,name:sourceName,sourcePath:source,files,count:files.length,bytes:files.reduce((sum,file)=>sum+file.bytes,0),modCount:inspected.modCount,modNames:inspected.names}}};
       }
       // VTF already has a safe general extractor. DDS ZIP keeps its native CRC-
       // checked streaming reader; other DDS archives are extracted exactly once.
@@ -185,8 +199,8 @@ class SkinImporter{
     finally{if(temporary)await fsp.rm(temporary,{recursive:true,force:true}).catch(()=>{});this.reserve(false);this.busy=false;}
   }
 }
-function register({ipcMain,dialog,BrowserWindow,dds,vtf,mods,app}){
-  const importer=new SkinImporter({dds,vtf,mods});
+function register({ipcMain,dialog,BrowserWindow,dds,vtf,mods,icepick,app}){
+	const importer=new SkinImporter({dds,vtf,mods,icepick,BrowserWindow});
   ipcMain.handle("skin-import-inspect",(event,input={})=>importer.run(event,()=>input.path));
   ipcMain.handle("skin-import-install",(event,input={})=>importer.install(event,input));
   ipcMain.handle("skin-import-clear",()=>importer.clear());
@@ -200,4 +214,4 @@ function register({ipcMain,dialog,BrowserWindow,dds,vtf,mods,app}){
   }));
   return importer;
 }
-module.exports={SkinImporter,register,classify,parseListing,scanDirectory,messages};
+module.exports={SkinImporter,register,classify,isIcepickDefinition,parseListing,scanDirectory,messages};

@@ -96,6 +96,13 @@ function start() {
 	})
 	mainWindow = win;
 	win.once("closed", () => { mainWindow = null; });
+	const backgroundTray = require("./modules/background-tray");
+	backgroundTray.configure({getWindow:() => mainWindow, isActive:() => require("./modules/ea-emulator").isActive()});
+	win.on("close", event => {
+		if (backgroundTray.allowClose()) return;
+		event.preventDefault();
+		backgroundTray.enter();
+	});
 	const acceptLanguages = {"zh-CN":"zh-CN,zh,en-US,en","zh-TW":"zh-TW,zh,en-US,en","en-US":"en-US,en","de-DE":"de-DE,de,en-US,en","fr-FR":"fr-FR,fr,en-US,en"};
 	win.webContents.session.setUserAgent(win.webContents.getUserAgent(), acceptLanguages[nativeUiLanguage]);
 
@@ -154,12 +161,16 @@ function start() {
 	require("./modules/update");
 	require("./modules/version");
 	require("./modules/ipc");
+	require("./modules/ea-account").register();
+	require("./modules/ea-diagnostics").register();
+	require("./modules/icepick").register();
 	require("./modules/gamepath");
 	require("./modules/system_dns");
 	require("./modules/launch");
 	require("./modules/vanilla-client");
+	require("./modules/dual-install").register(require("electron"));
 	const dds = require("./modules/dds"), vtf = require("./modules/vtf");
-	require("./modules/skin-import").register({...require("electron"),dds,vtf,mods:require("./modules/mods")});
+	require("./modules/skin-import").register({...require("electron"),dds,vtf,mods:require("./modules/mods"),icepick:require("./modules/icepick")});
 	require("./modules/weapon-library").register({...require("electron"),dds,vtf,mods:require("./modules/mods"),settings:require("./modules/settings")});
 	require("./modules/skin-switch").installEngines({dds,vtf,baseDir:path.join(app.getPath("appData"),"fold-launcher","skin-switch")});
 	require("./modules/server-list").register(require("electron").ipcMain);
@@ -192,3 +203,5 @@ app.on("window-all-closed", () => {
 	app.quit();
 });
 }
+
+

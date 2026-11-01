@@ -17,7 +17,7 @@ var mods;
   const normalized = value => String(value ?? "").normalize("NFKC").toLocaleLowerCase();
   const copy = key => I18n.t("mods." + key);
   const mode = value => ["added", "name", "enabled"].includes(value) ? value : "added";
-  const context = () => JSON.stringify([settings.gamepath || '', settings.modProfileServer || settings.northstarRegion || 'cn', settings.independentServerMods === true]);
+  const context = () => JSON.stringify([settings.gamepath || '', settings.globalGamepath || '', settings.modProfileServer || settings.northstarRegion || 'cn', settings.independentServerMods === true]);
   const settingsBusy = () => Boolean(window.Settings?.saving);
   const encode = value => encodeURIComponent(String(value ?? "")).replace(/_/g, "%5F").replace(/%/g, "_");
   const label = mod => mod.package?.manifest?.name || mod.package?.package_name || mod.manifest_name || mod.name;
@@ -303,5 +303,9 @@ var mods;
   document.getElementById("modSearchEmptyClear")?.addEventListener("click", clearSearch);
   window.addEventListener("vyra-language-changed", () => load(snapshot));
   window.addEventListener("tfx-settings-saving-changed", () => {for (const id of cards.keys()) viewState(id);});
-  ipcRenderer.on("changed-settings", (_event, update) => {if (update && Object.hasOwn(update, "modSort")) {settings.modSort = mode(update.modSort); load(snapshot);}});
+  ipcRenderer.on("changed-settings", (_event, update) => {
+    if (!update) return;
+    if (Object.hasOwn(update, "modSort")) {settings.modSort = mode(update.modSort); load(snapshot);}
+    if (["gamepath", "globalGamepath", "modProfileServer", "northstarRegion", "independentServerMods"].some(key => Object.hasOwn(update, key))) ipcRenderer.send("gui-getmods");
+  });
 })();

@@ -3,15 +3,14 @@ const fs = require("fs"), path = require("path");
 const {ipcMain,app} = require("electron");
 const settings = require("./settings"), releases = require("./releases"), clients = require("./northstar-clients");
 const gate = require("./dds-operation-gate"), running = require("./is_running");
-const {hasGame} = require("./launch-session");
 const network = require("./northstar-region"), win = require("../win"), console = require("./console");
 const update = {};
 function send(value) {try {win().send("ns-update-event",value);}catch(_) {}}
 function errorMessage(error) {return settings().uiLanguage === "en-US" ? "Northstar client update failed: " + error.message : "北极星客户端更新失败：" + error.message;}
-async function stopped() {
+async function stopped(gameRoot) {
   const snapshot = await running.snapshot();
   if (!snapshot?.ok) throw Error("无法确认游戏进程，已停止北极星文件切换");
-  if (hasGame(snapshot)) throw Error("请先退出游戏及北极星进程，再切换客户端文件");
+  if (require("./game-roots").hasGame(snapshot, gameRoot)) throw Error("请先退出所选游戏目录中的 Titanfall 2 及北极星进程，再切换客户端文件");
 }
 async function available(conf, force=false) {
   const region = network.normalize(conf.northstarRegion), local = await clients.status(region,conf);
@@ -29,10 +28,10 @@ update.northstar = async forceInstall => {
   if (update.northstar.updating) return {ok:false,pending:true};
   update.northstar.updating = true;
   const conf = Object.freeze({...settings()}), region = network.normalize(conf.northstarRegion);
-  const guard=()=>{const current=settings();if(network.normalize(current.northstarRegion)!==region||current.gamepath!==conf.gamepath||current.nsargs!==conf.nsargs)throw Error("客户端选择已改变，请重新检查更新。");};
+  const guard=()=>{const current=settings();if(network.normalize(current.northstarRegion)!==region||current.gamepath!==conf.gamepath||current.globalGamepath!==conf.globalGamepath||current.nsargs!==conf.nsargs)throw Error("客户端选择已改变，请重新检查更新。");};
   try {
     return await gate.run("client-update",async()=>{
-      clients.context(conf); await stopped();
+      const selection=clients.context(conf); await stopped(selection.gameRoot);
       send("cli.update.checking");
       const check = await available(conf,true);
       // Preserve newer local CN builds; compare only versions of one family.
@@ -44,7 +43,7 @@ update.northstar = async forceInstall => {
       send("cli.update.downloading");
       const directory = await clients.cache.update(check.latest);
       guard();
-      await stopped();
+      await stopped(selection.gameRoot);
       const result = await clients.ensure({conf,directory,repair:forceInstall===true,allowInstall:false,refresh:true,guard});
       send("cli.update.uptodate_short"); return {ok:true,...result};
     });
@@ -64,17 +63,18 @@ ipcMain.on("delete-install-cache",()=>{
 });
 let timer=null, started=false;
 update.northstar_autoupdate=()=>{
-  if(started||!settings().nsupdate||!settings().gamepath)return;
+  if(started||!settings().nsupdate)return;
   started=true;
   async function check(){
     try {
       if(settings().nsupdate&&!gate.busy){
         const conf={...settings()}, snapshot=await running.snapshot();
-        if(snapshot?.ok&&!hasGame(snapshot)){
+        const selection=clients.context(conf);
+        if(snapshot?.ok&&!require("./game-roots").hasGame(snapshot,selection.gameRoot)){
           const local=await clients.status(network.normalize(conf.northstarRegion),conf);
           if(!local.ok||!local.installed)return;
           const result=await available(conf);
-          if(result.newer&&network.normalize(settings().northstarRegion)===result.region&&settings().gamepath===conf.gamepath)await update.northstar();
+          if(result.newer&&network.normalize(settings().northstarRegion)===result.region&&settings().gamepath===conf.gamepath&&settings().globalGamepath===conf.globalGamepath)await update.northstar();
         }
       }
     }catch(error){console.warn(errorMessage(error));}

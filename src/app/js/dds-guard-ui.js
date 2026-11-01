@@ -3,7 +3,7 @@
   'use strict';
   const $ = id => document.getElementById(id);
   const t = (key, parameters) => I18n.t('ddsGuard.' + key, parameters);
-  const state = {package:null,protection:null,game:{ready:false,path:''},busy:false,actionBusy:false,error:'',confirming:false,refreshBusy:false,processRunning:false};
+  const state = {package:null,protection:null,game:{ready:false,path:''},busy:false,actionBusy:false,error:'',confirming:false,refreshBusy:false};
   let revision = 0;
   let refreshing = null;
   let refreshingPath = '';
@@ -11,9 +11,14 @@
   const visible = () => $('options').classList.contains('shown');
   const refreshVisible = () => { if (visible() || state.package || state.actionBusy) return refresh(); };
   const normalizedPath = path => String(path || '').trim().replace(/[\\/]+/g,'/').replace(/\/+$/,'').toLowerCase();
-  const gamePath = () => normalizedPath(typeof settings !== 'undefined' ? settings.gamepath : '');
+  const selectedServer = () => typeof settings === 'undefined' ? 'cn' : ['cn','global','official'].includes(settings.modProfileServer) ? settings.modProfileServer : settings.northstarRegion === 'global' ? 'global' : 'cn';
+  const gamePath = () => normalizedPath(typeof settings === 'undefined' ? '' : selectedServer() === 'global' ? settings.globalGamepath : settings.gamepath);
   const currentProtection = protection => !protection || !Object.prototype.hasOwnProperty.call(protection,'gamePath') || normalizedPath(protection.gamePath) === gamePath();
-  const running = () => state.processRunning || typeof is_running !== 'undefined' && Boolean(is_running);
+  const running = () => {
+    const server = selectedServer(), availability = window.VyraLaunchAvailability, snapshot = window.VyraGameProcesses?.snapshot;
+    if (!availability || !snapshot) return true;
+    return availability.rootOccupied(snapshot, settings, server === 'official' ? 'vanilla' : 'northstar', server === 'global' ? 'global' : 'cn');
+  };
   const operationBusy = () => state.busy || Boolean(window.Settings?.saving || window.VTF?.state?.busy || window.Fold?.DDS?.state?.busy);
   const canCapture = () => state.game.ready && !running() && !operationBusy() && !state.refreshBusy && !state.actionBusy && Number(state.protection?.activeCount)>0 && ['ready','changed','unrecorded'].includes(state.protection?.state);
   const toast = (key, error = false, description = '') => new Toast({scheme:error?'error':'success',title:t(key),description:I18n.text(description),timeout:error?9000:4500});
@@ -105,7 +110,6 @@
         if (!result?.ok) throw new Error(result?.error || t('operationError'));
         state.protection = result.protection || null;
         state.game = result.game || {ready:false,path:''};
-        state.processRunning = Boolean(result.running);
         state.busy = Boolean(result.busy);
         state.error = '';
         return result;
@@ -160,12 +164,20 @@
     else if (result.restored) toast('restored');
     refreshVisible();
   });
-  ipcRenderer.on('newpath',(_event,path) => {state.game={ready:false,path:path||''};refreshVisible();});
+  ipcRenderer.on('newpath',(_event,path) => {if (normalizedPath(path) !== gamePath()) return;state.game={ready:false,path:path||''};refreshVisible();});
   function invalidateGame() {++revision;refreshing=null;state.refreshBusy=false;state.game={ready:false,path:''};state.protection=null;state.confirming=false;renderProtection();}
-  ipcRenderer.on('gamepath-status',(_event,game) => {if (!game?.valid) invalidateGame(); else refreshVisible();});
-  ipcRenderer.on('gamepath-lost',invalidateGame);
-  ipcRenderer.on('changed-settings',(_event,value) => {if (value && ['gamepath','northstarRegion','nsargs'].some(key => Object.prototype.hasOwnProperty.call(value,key))) refreshVisible();});
-  ipcRenderer.on('is-running',(_event,value) => {state.processRunning=Boolean(value);renderProtection();if(!value)refreshVisible();});
+  ipcRenderer.on('gamepath-status',(_event,game) => {if (normalizedPath(game?.path) !== gamePath()) return;if (!game?.valid) invalidateGame(); else refreshVisible();});
+  ipcRenderer.on('gamepath-lost',() => {if (gamePath() === normalizedPath(settings.gamepath)) invalidateGame();});
+  let observedPath = gamePath();
+  function refreshProfile() {
+    const nextPath = gamePath();
+    if (nextPath !== observedPath) {observedPath=nextPath;invalidateGame();}
+    refreshVisible();
+  }
+  ipcRenderer.on('globalpath-selected',(_event,path) => {if (normalizedPath(path) === gamePath()) refreshProfile();});
+  ipcRenderer.on('changed-settings',(_event,value) => {if (value && ['gamepath','globalGamepath','northstarRegion','modProfileServer','nsargs'].some(key => Object.prototype.hasOwnProperty.call(value,key))) refreshProfile();});
+  ipcRenderer.on('game-process-snapshot',() => {renderProtection();refreshVisible();});
+  ipcRenderer.on('is-running',() => renderProtection());
   events.on('popup-changed',({popup,new_state:shown}) => {if (popup.id === 'options' && shown) refresh();});
   window.addEventListener('vyra-language-changed',render);
   window.addEventListener('tfx-settings-saving-changed',renderProtection);

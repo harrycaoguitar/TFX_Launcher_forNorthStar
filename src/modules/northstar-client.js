@@ -4,7 +4,6 @@
 // cannot replace their loaders, plugins or core scripts. This module owns only
 // the explicit official paths below and keeps a write-ahead recovery journal.
 const fs = require("fs"), fsp = fs.promises, path = require("path"), crypto = require("crypto");
-const {execFile} = require("child_process");
 const {acquireGameLock} = require("./vtf-engine");
 
 const CHANNELS = ["cn", "global"], PROFILE = "R2Northstar";
@@ -123,10 +122,9 @@ async function validateBundle(directory, channel) {
 }
 async function defaultProcessCheck() {
   if (process.platform !== "win32") throw Error("北极星客户端切换需要 Windows 进程检查");
-  return new Promise((resolve, reject) => execFile("tasklist.exe", ["/FO", "CSV", "/NH"], {windowsHide: true, timeout: 5000, maxBuffer: 2 * 1024 * 1024}, (error, output = "") => {
-    if (error) return reject(Error("无法读取游戏进程，已停止北极星文件切换"));
-    resolve(output.split(/\r?\n/).some(line => /^"(?:NorthstarLauncher|Titanfall2|Titanfall2-unpacked)\.exe",/i.test(line)));
-  }));
+  const snapshot = await require("./is_running").snapshot();
+  if (!snapshot?.ok) throw Error("无法读取游戏进程，已停止北极星文件切换");
+  return snapshot;
 }
 
 class NorthstarClientSwitcher {
@@ -136,12 +134,12 @@ class NorthstarClientSwitcher {
     this.rotation = require("./northstar-client-rotation")(this, {fsp, path, crypto, key, hash, samePath, inside, lstat, safeAncestors, fileInfo, equalInfo, readJson, writeJson, safeCopy, validateManifest, validateBundle, CORE_DIRS, ROOT_FILES, CHANNELS, ID, HASH, MAX_FILES, MAX_FILE_BYTES});
   }
   emit(phase, percent, message, detail = {}) {try {this.progress({phase, percent, message, ...detail});} catch (_) { /* A disconnected renderer cannot break a disk transaction. */ }}
-  async assertStopped() {
-    const result = await this.processCheck();
+  async assertStopped(root) {
+    const result = await this.processCheck(root);
     let running;
     if (typeof result === "boolean") running = result;
     else if (result && result.ok === true && typeof result.running === "boolean") running = result.running;
-    else if (result && result.ok === true && Array.isArray(result.processes)) running = result.processes.some(item => ["northstarlauncher.exe", "titanfall2.exe", "titanfall2-unpacked.exe"].includes(key(item.image || "")));
+    else if (result && result.ok === true && Array.isArray(result.processes)) running = require("./game-roots").hasGame(result, root);
     else throw Error("无法确认游戏进程，已停止北极星文件切换");
     if (running) throw Error("请先退出游戏及北极星进程，再切换客户端文件");
   }
@@ -199,7 +197,7 @@ class NorthstarClientSwitcher {
     const shared = this.validateSharedReceipt(context, await readJson(path.join(context.sharedState, "root-installed.json")));
     const expected = new Map(receipt.files.filter(file => !ROOT_FILES.has(key(file.path))).map(file => [key(file.path), file]));
     for (const file of shared?.files || receipt.files.filter(file => ROOT_FILES.has(key(file.path)))) expected.set(key(file.path), file);
-    for (const filename of new Set([...expected.keys(), ...current.keys()])) if (!equalInfo(expected.get(filename) || null, current.get(filename) || null)) throw Error("北极星核心文件已被外部程序修改，已保留备份并停止切换：" + (current.get(filename)?.path || expected.get(filename)?.path || filename));
+    for (const filename of new Set([...expected.keys(), ...current.keys()])) if (!equalInfo(expected.get(filename) || null, current.get(filename) || null)) throw Object.assign(Error("北极星核心文件已被外部程序修改，已保留备份并停止切换：" + (current.get(filename)?.path || expected.get(filename)?.path || filename)), {code: "CLIENT_RECEIPT_MISMATCH"});
   }
   validateSharedReceipt(context, receipt) {
     if (!receipt) return null;
@@ -331,7 +329,7 @@ class NorthstarClientSwitcher {
   async locked(options, action) {
     if (this.busy) throw Error("另一个北极星客户端切换正在执行");
     this.busy = true; let release;
-    try {const context = await this.context(options.gameRoot, options.profile); await this.assertStopped(); release = await this.acquireLock(context.root); await this.assertStopped(); return await action(context);}
+    try {const context = await this.context(options.gameRoot, options.profile); await this.assertStopped(context.root); release = await this.acquireLock(context.root); await this.assertStopped(context.root); return await action(context);}
     finally {try {if (release) await release();} finally {this.busy = false;}}
   }
   async pending(context) {return (await this.transactions(context)).filter(item => !["committed", "rolled-back"].includes(item.value.state));}
@@ -385,16 +383,16 @@ class NorthstarClientSwitcher {
     }
     const prior = await readJson(path.join(dir, "receipt.before.json")); this.validateReceipt(context, prior);
     const sharedPrior = this.validateSharedReceipt(context, await readJson(path.join(dir, "root-receipt.before.json")));
-    await this.assertStopped();
+    await this.assertStopped(context.root);
     for (const row of [...transaction.rows].reverse()) {
-      if(row.index%24===0)await this.assertStopped();
+      if(row.index%24===0)await this.assertStopped(context.root);
       await fsp.rm(path.join(context.root, ...row.temp.split("/")), {force: true});
       await this.writeRow(context, row, row.before ? path.join(dir, "before", row.index + ".bin") : null, row.before, transaction.id);
     }
     const restored = await this.scan(context, transaction.controlled);
     const expected = new Map([...baseline, ...transaction.rows.filter(row => row.before).map(row => [key(row.path), {path: row.path, ...row.before}])]);
     for (const filename of new Set([...restored.keys(), ...expected.keys()])) if (!equalInfo(restored.get(filename) || null, expected.get(filename) || null)) throw Error("北极星恢复后的文件校验失败：" + filename);
-    await this.assertStopped();
+    await this.assertStopped(context.root);
     const receiptFile = path.join(context.state, "installed.json");
     if (prior) await writeJson(receiptFile, prior); else await fsp.rm(receiptFile, {force: true});
     const sharedFile = path.join(context.sharedState, "root-installed.json");
@@ -425,7 +423,7 @@ class NorthstarClientSwitcher {
         if (!options.bundleRoot && options.refresh !== true && options.refreshClient !== true && options.repair !== true && receipt?.channel === options.channel && rootMatches) {
           const current = await this.scan(context, this.controlledPaths(context, receipt, sharedReceipt));
           if (!current.size && options.allowInstall === false) {const error = Error(options.channel === "cn" ? "国服北极星客户端未安装，请先安装" : "全球服北极星客户端未安装，请先安装"); error.code = "CLIENT_NOT_INSTALLED"; error.channel = options.channel; throw error;}
-          await this.verifyReceipt(context, receipt, current); await this.assertStopped();
+          await this.verifyReceipt(context, receipt, current); await this.assertStopped(context.root);
           this.emit("done", 100, "北极星客户端文件已就绪", {channel: options.channel, version: receipt.version});
           return {channel: options.channel, version: receipt.version, changed: false, strategy: "active-receipt", transactionId: receipt.transactionId};
         }
@@ -459,7 +457,8 @@ class NorthstarClientSwitcher {
         // Only the explicit reinstall action may replace modified official
         // files. It uses the same bounded ownership, full backup and recovery
         // transaction; a normal launch always rejects external changes.
-        if (options.repair !== true) {
+        const explicitInstall = options.allowInstall === true && (options.refresh === true || options.refreshClient === true);
+        if (options.repair !== true && !explicitInstall) {
           const explicitEmptyInstall = options.allowInstall === true && (options.refresh === true || options.refreshClient === true) && !current.size;
           if (receipt) {if (!explicitEmptyInstall) await this.verifyReceipt(context, receipt, current);}
           else if (sharedReceipt && !explicitEmptyInstall) for (const filename of ROOT_FILES) if (!equalInfo(current.get(filename) || null, sharedReceipt.files.find(file => key(file.path) === filename) || null)) throw Error("北极星根目录客户端已被外部程序修改：" + filename);
@@ -481,7 +480,7 @@ class NorthstarClientSwitcher {
           const rotated = await this.rotation.switchClient(context, options, incoming, prior, sharedReceipt, current, controlled);
           if (rotated) return rotated;
         }
-        await this.assertStopped();
+        await this.assertStopped(context.root);
         const id = crypto.randomUUID(), transactionRoot = path.join(context.state, "transactions"), staging = path.join(transactionRoot, ".preparing-" + id), dir = path.join(transactionRoot, id);
         await fsp.mkdir(staging, {recursive: true});
         const needed = changed.reduce((sum, filename) => sum + (current.get(filename)?.size || 0) + (desired.get(filename)?.size || 0), 0), space = await fsp.statfs(staging);
@@ -505,10 +504,10 @@ class NorthstarClientSwitcher {
           await this.hook("prepared", transaction);
           const check = await this.scan(context, [...controlled]);
           for (const filename of new Set([...current.keys(), ...check.keys()])) if (!equalInfo(current.get(filename) || null, check.get(filename) || null)) throw Error("北极星核心文件在备份后发生变化，已停止切换");
-          await this.assertStopped(); transaction.state = "applying"; await writeJson(path.join(dir, "transaction.json"), transaction);
+          await this.assertStopped(context.root); transaction.state = "applying"; await writeJson(path.join(dir, "transaction.json"), transaction);
           this.emit("switching", 15, "正在切换北极星客户端文件", {channel: options.channel});
           for (const row of transaction.rows) {
-            if (row.index % 24 === 0) await this.assertStopped();
+            if (row.index % 24 === 0) await this.assertStopped(context.root);
             if (!equalInfo(await fileInfo(await safeAncestors(context.root, row.path)), row.before)) throw Error("北极星客户端文件在写入前被其他程序修改：" + row.path);
             if (await lstat(await safeAncestors(context.root, row.temp))) throw Error("北极星临时文件在写入前被其他程序占用：" + row.path);
             await this.writeRow(context, row, row.after ? path.join(dir, "after", row.index + ".bin") : null, row.after, id);
@@ -518,7 +517,7 @@ class NorthstarClientSwitcher {
           this.emit("verifying", 85, "正在校验完整客户端与核心模组");
           const final = await this.scan(context, [...controlled]);
           for (const filename of new Set([...desired.keys(), ...final.keys()])) if (!equalInfo(desired.get(filename) || null, final.get(filename) || null)) throw Error("北极星切换后的完整目录校验失败：" + filename);
-          await this.assertStopped(); await this.hook("verified", transaction);
+          await this.assertStopped(context.root); await this.hook("verified", transaction);
           const next = this.makeReceipt(context, incoming, desired, id); await this.writeReceipts(context, next);
           await this.hook("receipt-written", transaction);
           transaction.state = "committed"; transaction.completedAt = new Date().toISOString(); await writeJson(path.join(dir, "transaction.json"), transaction);

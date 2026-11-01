@@ -41,8 +41,13 @@
     launchPending = result.state === 'starting';
     if (!launchPending) {
       for (const button of document.querySelectorAll('.playBtn')) {
-        button.disabled = !gameDirectoryReady || is_running;
-        button.textContent = is_running ? lang('general.running') : lang('gui.launch');
+        const version = button.id === 'playTfBtn' ? 'vanilla' : 'northstar';
+        const region = settings.northstarRegion === 'global' ? 'global' : 'cn';
+        const availability = window.VyraLaunchAvailability;
+        const snapshot = window.VyraGameProcesses?.snapshot;
+        const occupied = availability?.rootOccupied(snapshot, settings, version, region) === true;
+        button.disabled = availability?.directoryReady(settings, version, region, {cn: gameDirectoryReady, global: globalGameDirectoryReady}) !== true || availability?.canLaunch(snapshot, settings, version, region) !== true;
+        button.textContent = occupied ? lang('general.running') : lang('gui.launch');
       }
     }
     render();
@@ -59,7 +64,7 @@
   });
   // Legacy path and process events may update the same buttons. Pending launch
   // owns them until confirmation or a failure releases the lock.
-  for (const channel of ['is-running','gamepath-status','newpath','set-buttons','ns-update-event']) {
+  for (const channel of ['game-process-snapshot','is-running','gamepath-status','newpath','set-buttons','ns-update-event']) {
     ipcRenderer.on(channel, () => { if (launchPending) queueMicrotask(render); });
   }
   window.addEventListener('vyra-language-changed', render);

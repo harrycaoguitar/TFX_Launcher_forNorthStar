@@ -3,9 +3,6 @@
 const VyraMotion = (() => {
 	const motions = new Map();
 	const reduced = matchMedia('(prefers-reduced-motion: reduce)');
-	let pageTransition = null;
-	let pageSequence = 0;
-	const pageNames = new Set();
 	const canMove = element => !document.hidden && !reduced.matches && typeof element.animate === 'function';
 	const frame = element => {
 		const style = getComputedStyle(element);
@@ -40,55 +37,19 @@ const VyraMotion = (() => {
 		const start = motions.has(element) ? frame(element) : {opacity: 0, transform: `translateY(${offset}px)`};
 		return play(element, start, {opacity: 1, transform: 'translateY(0px)'}, {duration, phase: 'entering'});
 	}
-	function clearPageNames() {
-		for (const element of pageNames) element.style.removeProperty('view-transition-name');
-		pageNames.clear();
-	}
-	function namePage(element) {
-		element.style.setProperty('view-transition-name', 'vyra-page');
-		pageNames.add(element);
-	}
 	function changePage(previous, next, update) {
-		const sequence = ++pageSequence;
-		pageTransition?.skipTransition();
-		pageTransition = null;
-		clearPageNames();
 		if (previous) cancel(previous);
-		const before = previous?.closest('.contentContainer');
-		const after = next?.closest('.contentContainer');
-		if (!before || !after || !canMove(next) || typeof document.startViewTransition !== 'function') {
-			update();
-			if (previous) reveal(next);
-			return null;
-		}
-		namePage(before);
-		const transition = document.startViewTransition(() => {
-			// A skipped transition can still call its update. Only the latest
-			// navigation may commit DOM state or dispatch a page lifecycle event.
-			if (sequence !== pageSequence) return;
-			clearPageNames();
-			update();
-			namePage(after);
-		});
-		pageTransition = transition;
-		// skipTransition() intentionally rejects ready; it is normal when the
-		// user changes their destination before the previous capture completes.
-		transition.ready.catch(() => {});
-		transition.finished.catch(() => {}).then(() => {
-			if (sequence !== pageSequence) return;
-			clearPageNames();
-			pageTransition = null;
-		});
-		return transition;
+		update();
+		if (previous && previous !== next) reveal(next);
+		return null;
 	}
 	function finishAll() {
-		pageTransition?.skipTransition();
 		for (const running of [...motions.values()]) running.finish();
 	}
 	// Hidden windows and reduced motion should never leave a pending visual layer.
 	document.addEventListener('visibilitychange', () => { if (document.hidden) finishAll(); });
 	reduced.addEventListener('change', () => { if (reduced.matches) finishAll(); });
-	return Object.freeze({reveal, changePage, cancel, finishAll, frame, play, get activeCount() { return motions.size + Number(Boolean(pageTransition)); }});
+	return Object.freeze({reveal, changePage, cancel, finishAll, frame, play, get activeCount() { return motions.size; }});
 })();
 window.VyraMotion = VyraMotion;
 

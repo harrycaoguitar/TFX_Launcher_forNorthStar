@@ -1,6 +1,7 @@
 {
   "locale": "zh-TW",
   "strings": {
+    "EA emulator": "EA 模擬器",
     "Save your changes before leaving?": "儲存設定後再離開？",
     "You have unsaved changes. Save them before leaving, discard them, or keep editing.": "還有未儲存的變更。你可以儲存後離開、放棄變更，或繼續編輯。",
     "Save and leave": "儲存並離開",
@@ -1581,7 +1582,7 @@
     "The launch mode, folder or components changed. External changes were preserved. Check again and retry.": "啟動方式、目錄或元件已變更，未覆寫外部修改，請重新檢查後重試。",
     "Another operation is in progress. Wait for it to finish, then try again.": "其他操作正在進行，請等待完成後重試。",
     "Official-game Mod components are missing or need repair. Install Vanilla+ on the Play page.": "官服 Mod 元件未安裝或需要修復，請在開始遊戲頁面安裝 Vanilla+。",
-    "Official-game Mods require Northstar 1.29.0 or later. Repair or update the loader components.": "官服 Mod 需要 Northstar 1.29.0 或更新版本，請修復或更新載入元件。",
+    "Official-game Mods require Northstar 1.21.0 or later. Repair or update the loader components.": "官服 Mod 需要 Northstar 1.21.0 或更新版本，請修復或更新載入元件。",
     "Multiple Vanilla+ versions were found. Remove duplicate versions in My Mods, then retry.": "偵測到多個 Vanilla+ 版本，請在我的模組中移除重複版本後重試。",
     "Other files occupy the Vanilla+ installation location. They were preserved. Check the conflicting folder, then retry.": "Vanilla+ 安裝位置已有其他檔案，已保留原檔案，請檢查同名目錄後重試。",
     "Vanilla+ files or folder structure are invalid. Installation stopped. Check the Mod folder, then retry.": "Vanilla+ 檔案或目錄結構無效，已停止安裝，請檢查 Mod 目錄後重試。",

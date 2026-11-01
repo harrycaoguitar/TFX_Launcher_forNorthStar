@@ -116,6 +116,8 @@ var Settings = {
 		if (window.Themes) Themes.load();
 		const pathField = document.getElementById('settingsGamePath');
 		if (pathField) { pathField.textContent = settings.gamepath || (window.I18n ? I18n.text('尚未选择游戏目录') : '尚未选择游戏目录'); pathField.title = pathField.textContent; }
+		const globalPathField = document.getElementById('settingsGlobalGamePath');
+		if (globalPathField) { globalPathField.textContent = settings.globalGamepath || (window.I18n ? I18n.t('settings.globalPathMissing') : '尚未选择国际服游戏目录'); globalPathField.title = globalPathField.textContent; }
 
 		let options = document.querySelectorAll(".option");
 

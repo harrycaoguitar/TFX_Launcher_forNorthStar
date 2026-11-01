@@ -25,3 +25,13 @@ TITANFALL 2 题标来自 Steam Titanfall®2（app 1237970）官方店铺公开�
 缺失原版皮肤资源的可选下载使用 SteamRE 社区维护的 DepotDownloader 3.4.0。它不是 Valve 或 Electronic Arts 官方程序；游戏资源字节由 Steam 提供。TFX 的选择、隔离缓存和校验适配器为新增 JavaScript 实现，通过公开命令行调用未经修改的上游程序，不包含其 C# 实现。该工具不随启动器运行包捆绑，只有用户选择单独下载资源时才按固定 SHA-256 从上游发布页获取；缓存保留其原 LICENSE。DepotDownloader 采用 GNU GPL version 2，来源与许可：https://github.com/SteamRE/DepotDownloader 和 https://github.com/SteamRE/DepotDownloader/blob/DepotDownloader_3.4.0/LICENSE 。其发行程序的 SteamKit2、QRCoder 等依赖仍遵守各自上游许可。版本、ZIP 与可执行文件哈希、下载流程及隔离范围见 docs/STEAM_RESOURCE_DOWNLOAD.md。TFX 不执行 Steam 全游戏验证，不传入账号密码或记住密码选项；独立登录环境在完成或取消后清理。此可选调用不改变 TFX 已有的 GPL-3.0-or-later 来源与署名义务。
 
 官服带 Mod 模式使用 VanillaPlus 2.5.1，作者来源：https://github.com/NachosChipeados/NP.VanillaPlus ，发布来源：https://thunderstore.io/c/northstar/p/NachosChipeados/VanillaPlus/2.5.1/ 。该兼容组件由 Nanohm 制作、Cyn 重制、NachosChipeados 更新，采用 MIT 许可，Copyright (c) 2023 NanohmProtogen。其代码与原始 LICENSE、README、FAQ 随组件保留；TFX 的校验、安装事务和启动模式集成为独立新增实现，不能把 VanillaPlus 宣称为本项目原创。包内 Lato Regular 2.015 与 Northstar Mono 3.206 字体未经修改，采用 SIL Open Font License 1.1；本次已核对原字体内嵌版权与许可并补附完整 OFL 和来源。对应字节清单、原始 ZIP 哈希、字体版权与补充许可出处见 src/tools/vanilla-plus/manifest.json、SOURCE.md 和 payload/FONT-NOTICES.txt。
+
+## 1.1.0 integration and build-tool additions
+
+- EA connection/account integration references CrazyZhang666's EAappEmulater project: https://github.com/CrazyZhang666/EAappEmulater/releases/tag/1.9.1.3 . TFX's JavaScript integration and XML protocol templates are present under src/modules/ea-*.js and src/resources/ea-lsx. This attribution does not claim that the upstream emulator or EA protocol is original TFX work; consult the upstream project for its terms.
+- Icepick is an external Titanfall 2 campaign-mod framework (https://titanfallmods.com). TFX provides directory discovery, package import and separate mod management; the full Icepick executable/SDK is not bundled by this integration. Installed campaign mods retain their own authorship and licenses.
+- NSIS 3.0.4.1 is included for the setup build; its copyright and license texts are retained in build-tools/nsis/COPYING.
+- @electron/asar 4.3.1 and its build dependencies retain the package licenses and notices under build-tools/asar/node_modules.
+- rcedit 2.0.0 is distributed under MIT; the full notice is in build-tools/rcedit-LICENSE.txt. Source: https://github.com/electron/rcedit/tree/v2.0.0 .
+
+1.1.0 的安装器工具、客户端、框架、模组和其他第三方资源继续保留各自署名与许可。EA 与 Icepick 集成不代表这些上游项目为 TFX 原创，也不表示 Electronic Arts 官方背书。

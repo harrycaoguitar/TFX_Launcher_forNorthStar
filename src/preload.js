@@ -12,17 +12,17 @@ const sendChannels = new Set([
 	"install-from-path", "install-from-url", "install-mod",
 	"kill-game", "kill-origin", "launch-ns", "launch-vanilla",
 	"minimize", "no-internet", "relaunch", "remove-mod",
-	"save-settings", "setpath", "toggle-mod",
+	"save-settings", "setglobalpath", "setpath", "toggle-mod",
 	"update-northstar"
 ]);
 
 const receiveChannels = new Set([
 	"window-state",
 	"dds-progress", "vtf-progress", "skin-resource-progress", "skin-import-progress", "weapon-library-progress",
-	"launch-guard-result", "launch-status", "launch-diagnostic", "launch-compatibility", "northstar-client-progress", "vanilla-client-progress",
-	"alert", "changed-settings", "confirm", "download-cancelled",
+	"launch-guard-result", "launch-status", "launch-diagnostic", "launch-compatibility", "northstar-client-progress", "vanilla-client-progress", "global-game-root-progress", "china-game-root-progress",
+	"alert", "changed-settings", "confirm", "download-cancelled", "globalpath-selected", "globalpath-status",
 	"duped-mod", "failed-mod", "gamepath-lost", "gamepath-status", "gamepath-error", "installed-mod",
-	"is-running", "legacy-duped-mod", "log", "mods", "newpath",
+	"game-process-snapshot", "is-running", "legacy-duped-mod", "log", "mods", "newpath",
 	"no-internet", "no-path-selected", "ns-notes", "ns-update-event",
 	"pkg-progress", "removed-mod", "set-buttons", "unknown-error",
 	"version", "vp-notes", "wrong-path"
@@ -31,8 +31,10 @@ const receiveChannels = new Set([
 const invokeChannels = new Set([
 	"skin-import-select", "skin-import-inspect", "skin-import-install", "skin-import-clear", "weapon-library-list", "weapon-library-restore", "weapon-library-prune",
 	"launcher-update-check", "launcher-update-open",
+	"ea-status", "ea-login", "ea-logout", "ea-refresh", "ea-diagnostics", "ea-diagnostics-repair", "ea-diagnostics-open-log", "ea-registry-write",
+	"icepick-status", "icepick-select", "icepick-launch", "icepick-toggle", "icepick-remove", "icepick-import", "icepick-open",
 	"launch-diagnostic-get", "launch-diagnostic-export",
-	"settings-save", "settings-restore-defaults", "northstar-client-status", "northstar-client-install", "vanilla-client-status", "vanilla-client-install",
+	"settings-save", "settings-restore-defaults", "northstar-client-status", "northstar-client-install", "global-game-root-install", "china-game-root-install", "vanilla-client-status", "vanilla-client-install",
 	"server-list-get",
 	"set-mod-state",
 	"window-move-begin", "window-move-update", "window-move-end", "window-toggle-maximize",

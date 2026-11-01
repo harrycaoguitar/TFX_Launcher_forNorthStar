@@ -53,7 +53,10 @@ function directories(context, parent) {
   return fs.readdirSync(parent, {withFileTypes: true}).filter(entry => entry.isDirectory() && !entry.isSymbolicLink()).map(entry => path.join(parent, entry.name));
 }
 function profileContext(options = {}) {
-  const saved = settings(), gamePath = options.gamepath === undefined ? saved.gamepath : options.gamepath;
+  const saved = settings(), server = serverProfiles.selectedServer(saved);
+  let gamePath;
+  try {gamePath = options.gamepath === undefined ? require("./game-roots").gameRootForServer(saved, server) : options.gamepath;}
+  catch (_) {return null;}
   if (typeof gamePath !== "string" || !gamePath.trim() || !fs.existsSync(gamePath)) return null;
   const root = fs.realpathSync(gamePath);
   const profile = options.profileDirectory ? path.resolve(options.profileDirectory) : profileResolver.resolveProfile(root, splitArguments(saved.nsargs || ""));
@@ -173,15 +176,15 @@ function assertWritable(options={}) {
 }
 async function guardedMutation(action, options={}) {
   assertWritable(options);
-  const selected = {gamePath: settings().gamepath, arguments: settings().nsargs || "", region: serverProfiles.selectedServer(settings()), independent: settings().independentServerMods};
   const context = profileContext();
+  const selected = {gamePath: context?.root, cnGamePath: settings().gamepath, globalGamePath: settings().globalGamepath, arguments: settings().nsargs || "", region: serverProfiles.selectedServer(settings()), independent: settings().independentServerMods};
   const guard = async () => {
     const current = settings();
-    if (current.gamepath !== selected.gamePath || (current.nsargs || "") !== selected.arguments || serverProfiles.selectedServer(current) !== selected.region || current.independentServerMods !== selected.independent || !context || profileContext()?.profile !== context.profile) throw Error("The selected game profile changed; retry your action.");
+    if ((profileContext()?.root || null) !== selected.gamePath || current.gamepath !== selected.cnGamePath || current.globalGamepath !== selected.globalGamePath || (current.nsargs || "") !== selected.arguments || serverProfiles.selectedServer(current) !== selected.region || current.independentServerMods !== selected.independent || !context || profileContext()?.profile !== context.profile) throw Error("The selected game profile changed; retry your action.");
     const snapshot = await require("./is_running").snapshot();
     if (!snapshot.ok) throw Error("Unable to verify whether the game is running. Please retry.");
-    if (snapshot.processes.some(item => ["northstarlauncher.exe", "titanfall2.exe", "titanfall2-unpacked.exe"].includes(item.image))) throw Error("Please close the game before changing installed mods.");
-    if (settings().gamepath !== selected.gamePath || (settings().nsargs || "") !== selected.arguments || serverProfiles.selectedServer(settings()) !== selected.region || settings().independentServerMods !== selected.independent) throw Error("The selected game profile changed; retry your action.");
+    if (require("./game-roots").hasGame(snapshot, context?.root)) throw Error("Please close the game in the selected folder before changing installed mods.");
+    if ((profileContext()?.root || null) !== selected.gamePath || settings().gamepath !== selected.cnGamePath || settings().globalGamepath !== selected.globalGamePath || (settings().nsargs || "") !== selected.arguments || serverProfiles.selectedServer(settings()) !== selected.region || settings().independentServerMods !== selected.independent) throw Error("The selected game profile changed; retry your action.");
   };
   return require("./dds-operation-gate").run("mod-library", async () => {await guard();mutationDepth++;try{const conf=settings();if(conf.independentServerMods)require("./server-mod-profiles").transition(conf,conf);return action(guard);}finally{mutationDepth--;}});
 }
@@ -194,7 +197,7 @@ manager.list = function list(options = {}) {
   if (context && options.states === undefined && settings().independentServerMods) document = serverProfiles.view(context.profile, serverProfiles.selectedServer(settings()), document);
   const library = scanLibrary(context, document, addedTimes);
   if (!options.readOnly) {
-    manager.path = context?.mods || path.join(settings().gamepath || "", "R2Northstar", "mods"); manager.modfile.file = context?.state;
+    manager.path = context?.mods || ""; manager.modfile.file = context?.state || null;
     observer.observe(context); observer.acknowledge(); remember();
   }
   return library;

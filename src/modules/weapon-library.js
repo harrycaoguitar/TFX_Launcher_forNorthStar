@@ -7,6 +7,7 @@ const {readRecord,assertUnlinkedAncestors}=require("./backup-records");
 const {weaponsFor}=require("./skin-switch-weapons");
 const {parseIndex,readIndexFile}=require("./vtf-vpk");
 const {weapons}=require("./weapon-library-catalogue");
+const gameRoots=require("./game-roots");
 const {consumedScopes,annotateBackupAvailability,annotateStateAvailability,stateHistory}=require("./weapon-backup-scopes");
 const IDS=new Set(weapons.map(weapon=>weapon.id)),UUID=/^[a-f0-9-]{36}$/,LIMITS=Object.freeze({journals:3000,mods:2000,files:20000,depth:30,items:6000});
 const clean=value=>typeof value==="string"?value.replace(/[\x00-\x1f]/g,"").slice(0,200):"";
@@ -177,11 +178,13 @@ async function buildLibrary({gamePath,dds,vtf,mods=[],switchDir,readDds=ddsJourn
 }
 function register({dds,vtf,mods,settings,switchDir,ipcMain=require("electron").ipcMain,getCoordinator=()=>require("./skin-switch").getActive(),operationGate=require("./dds-operation-gate")}={}){
   let running=null;
+  const selectedGamePath=()=>gameRoots.gameRootForProfile(settings());
+  const isCurrentRoot=gamePath=>{try{return gameRoots.sameRoot(selectedGamePath(),gamePath);}catch{return false;}};
   async function list(){
-    const saved=settings(),gamePath=saved.gamepath;let library=[],modWarning=false;
+    const saved=settings(),gamePath=gameRoots.gameRootForProfile(saved);let library=[],modWarning=false;
     try{library=mods.list({readOnly:true}).all;}catch{modWarning=true;}
     const result=await buildLibrary({gamePath,dds,vtf,mods:library,switchDir:switchDir||path.join(path.dirname(dds.baseDir),"skin-switch")});
-    if(settings().gamepath!==gamePath)return {ok:false,error:"STALE_WEAPON_LIBRARY"};
+    if(!isCurrentRoot(gamePath))return {ok:false,error:"STALE_WEAPON_LIBRARY"};
     if(modWarning)warning(result.warnings,"mod-scan-incomplete");return result;
   }
   ipcMain.handle("weapon-library-list",async()=>{
@@ -190,26 +193,26 @@ function register({dds,vtf,mods,settings,switchDir,ipcMain=require("electron").i
     try{return await running;}finally{running=null;}
   });
   ipcMain.handle("weapon-library-prune",async(_event,input={})=>{
-    const gamePath=settings().gamepath;
+    const gamePath=selectedGamePath();
     try{
       if(!input||typeof input!=="object"||Array.isArray(input)||Object.keys(input).length)throw Error("WEAPON_RECOVERY_INVALID_REQUEST");
       if(operationGate.busy||dds.busy||vtf.busy||dds.sharedImportBusy||vtf.sharedImportBusy||dds.isImportBusy?.()||vtf.isImportBusy?.())throw Error("WEAPON_RECOVERY_BUSY");
       return await operationGate.run("weapon-library-prune",async()=>{
         const coordinator=getCoordinator();if(!coordinator)throw Error("WEAPON_RECOVERY_UNAVAILABLE");
-        return coordinator.locked(gamePath,async root=>({ok:true,...await require("./weapon-backup-prune").pruneUnlinkedBackups({coordinator,gamePath:root,stillCurrent:()=>settings().gamepath===gamePath})}));
+        return coordinator.locked(gamePath,async root=>({ok:true,...await require("./weapon-backup-prune").pruneUnlinkedBackups({coordinator,gamePath:root,stillCurrent:()=>isCurrentRoot(gamePath)})}));
       });
     }catch(error){return {ok:false,error:error.message};}
   });
   ipcMain.handle("weapon-library-restore",async(event,input={})=>{
     const progress=data=>{if(event?.sender&&!event.sender.isDestroyed())event.sender.send("weapon-library-progress",data);};
-    const gamePath=settings().gamepath;
+    const gamePath=selectedGamePath();
     try{
       if(!input||typeof input!=="object"||Array.isArray(input))throw Error("WEAPON_RECOVERY_INVALID_REQUEST");
       if(operationGate.busy||dds.busy||vtf.busy||dds.sharedImportBusy||vtf.sharedImportBusy||dds.isImportBusy?.()||vtf.isImportBusy?.())throw Error("WEAPON_RECOVERY_BUSY");
       return await operationGate.run("weapon-library-restore",async()=>{
         const coordinator=getCoordinator();if(!coordinator)throw Error("WEAPON_RECOVERY_UNAVAILABLE");
         const library=await list();if(!library.ok)throw Error(library.error);
-        if(settings().gamepath!==gamePath)throw Error("STALE_WEAPON_LIBRARY");
+        if(!isCurrentRoot(gamePath))throw Error("STALE_WEAPON_LIBRARY");
         if(input.recoveryId!==undefined){
           if(typeof input.recoveryId!=="string"||input.weaponId!==undefined||input.recordId!==undefined||input.targetMode!==undefined)throw Error("WEAPON_RECOVERY_INVALID_REQUEST");
           const recovery=library.recoveries.find(row=>row.id===input.recoveryId&&row.canRecover);if(!recovery)throw Error("WEAPON_RECOVERY_INVALID_RECORD");
@@ -222,7 +225,7 @@ function register({dds,vtf,mods,settings,switchDir,ipcMain=require("electron").i
           if(!["installed","original"].includes(input.targetMode)||input.itemId!==undefined||input.targetMode==="original"&&input.recordId!==undefined||input.targetMode==="installed"&&typeof input.recordId!=="string")throw Error("WEAPON_RECOVERY_INVALID_REQUEST");
           if(input.targetMode==="installed"){const source=library.items.find(item=>item.id===input.recordId);if(!source?.stateRestoreWeaponIds.includes(input.weaponId))throw Error("WEAPON_STATE_NOT_AVAILABLE:"+(source?.stateUnavailableReasons[input.weaponId]||"unassigned"));}
           else if(!library.stateRestoreWeaponIds.includes(input.weaponId))throw Error("WEAPON_STATE_NOT_AVAILABLE");
-          const result=await require("./weapon-library-state").restoreState({coordinator,gamePath,weaponId:input.weaponId,targetMode:input.targetMode,recordId:input.recordId,progress,stillCurrent:()=>settings().gamepath===gamePath,timestampFloor:Math.max(0,...library.items.map(item=>Date.parse(item.installedAt)||0))});
+          const result=await require("./weapon-library-state").restoreState({coordinator,gamePath,weaponId:input.weaponId,targetMode:input.targetMode,recordId:input.recordId,progress,stillCurrent:()=>isCurrentRoot(gamePath),timestampFloor:Math.max(0,...library.items.map(item=>Date.parse(item.installedAt)||0))});
           const remainingMods=library.items.filter(item=>item.format==="mod"&&item.state==="enabled"&&item.weaponIds.includes(input.weaponId)).map(item=>({id:item.id,name:item.name}));
           return {ok:true,...result,remainingMods};
         }
@@ -230,13 +233,13 @@ function register({dds,vtf,mods,settings,switchDir,ipcMain=require("electron").i
           if(typeof input.recordId!=="string")throw Error("WEAPON_RECOVERY_INVALID_RECORD");
           const source=library.items.find(item=>item.id===input.recordId);
           if(!source?.backupRestoreWeaponIds.includes(input.weaponId))throw Error("WEAPON_BACKUP_NOT_AVAILABLE:"+(source?.backupUnavailableReasons[input.weaponId]||"unassigned"));
-          const result=await require("./weapon-library-backup").restoreBackup({coordinator,gamePath,weaponId:input.weaponId,recordId:input.recordId,progress:data=>progress({...data,recordId:input.recordId}),stillCurrent:()=>settings().gamepath===gamePath,timestampFloor:Math.max(0,...library.items.map(item=>Date.parse(item.installedAt)||0))});
+          const result=await require("./weapon-library-backup").restoreBackup({coordinator,gamePath,weaponId:input.weaponId,recordId:input.recordId,progress:data=>progress({...data,recordId:input.recordId}),stillCurrent:()=>isCurrentRoot(gamePath),timestampFloor:Math.max(0,...library.items.map(item=>Date.parse(item.installedAt)||0))});
           const remainingMods=library.items.filter(item=>item.format==="mod"&&item.state==="enabled"&&item.weaponIds.includes(input.weaponId)).map(item=>({id:item.id,name:item.name}));
           return {ok:true,...result,remainingMods};
         }
         if(!library.restoreWeaponIds.includes(input.weaponId))throw Error("WEAPON_RECOVERY_NOT_AVAILABLE");
         if(input.itemId!==undefined&&!library.items.some(item=>item.id===input.itemId&&item.restoreWeaponIds.includes(input.weaponId)))throw Error("WEAPON_RECOVERY_INVALID_RECORD");
-        const result=await require("./weapon-library-recovery").restoreOriginal({coordinator,gamePath,weaponId:input.weaponId,progress,stillCurrent:()=>settings().gamepath===gamePath,timestampFloor:Math.max(0,...library.items.map(item=>Date.parse(item.installedAt)||0))});
+        const result=await require("./weapon-library-recovery").restoreOriginal({coordinator,gamePath,weaponId:input.weaponId,progress,stillCurrent:()=>isCurrentRoot(gamePath),timestampFloor:Math.max(0,...library.items.map(item=>Date.parse(item.installedAt)||0))});
         const remainingMods=library.items.filter(item=>item.format==="mod"&&item.state==="enabled"&&item.weaponIds.includes(input.weaponId)).map(item=>({id:item.id,name:item.name}));
         return {ok:true,...result,remainingMods};
       });

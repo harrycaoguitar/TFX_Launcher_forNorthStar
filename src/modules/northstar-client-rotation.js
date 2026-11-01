@@ -199,6 +199,11 @@ module.exports = function rotationTools(engine, api) {
   }
   async function switchClient(context, options, incoming, receipt, sharedReceipt, current, controlled) {
     if (!receipt || receipt.channel === incoming.manifest.channel || sharedReceipt && sharedReceipt.channel !== receipt.channel || options.repair === true) return null;
+    const explicitInstall = options.allowInstall === true && (options.refresh === true || options.refreshClient === true);
+    if (explicitInstall) {
+      try {await engine.verifyReceipt(context, receipt, current);}
+      catch (error) {if (error.code === "CLIENT_RECEIPT_MISMATCH") return null; throw error;}
+    }
     const privateSnapshot = await readJson(path.join(context.state, "channel-cache", receipt.channel, "manifest.json"));
     const normalization = privateSnapshot?.provenance?.configNormalization;
     if (normalization && current.get(key(engine.mapPath(context, normalization.path)))?.sha256 !== normalization.afterHash) return null;

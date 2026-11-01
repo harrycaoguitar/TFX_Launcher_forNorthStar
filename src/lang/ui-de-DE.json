@@ -1,6 +1,7 @@
 {
   "locale": "de-DE",
   "strings": {
+    "EA emulator": "EA-Emulator",
     "Save your changes before leaving?": "Änderungen vor dem Verlassen speichern?",
     "You have unsaved changes. Save them before leaving, discard them, or keep editing.": "Du hast ungespeicherte Änderungen. Speichere sie vor dem Verlassen, verwirf sie oder bearbeite sie weiter.",
     "Save and leave": "Speichern und verlassen",
@@ -1581,7 +1582,7 @@
     "The launch mode, folder or components changed. External changes were preserved. Check again and retry.": "Startmodus, Ordner oder Komponenten wurden geändert. Externe Änderungen bleiben erhalten. Prüfe erneut und versuche es noch einmal.",
     "Another operation is in progress. Wait for it to finish, then try again.": "Ein anderer Vorgang läuft. Warte, bis er abgeschlossen ist, und versuche es erneut.",
     "Official-game Mod components are missing or need repair. Install Vanilla+ on the Play page.": "Mod-Komponenten für das offizielle Spiel fehlen oder müssen repariert werden. Installiere Vanilla+ auf der Startseite.",
-    "Official-game Mods require Northstar 1.29.0 or later. Repair or update the loader components.": "Mods für das offizielle Spiel benötigen Northstar 1.29.0 oder neuer. Repariere oder aktualisiere die Loader-Komponenten.",
+    "Official-game Mods require Northstar 1.21.0 or later. Repair or update the loader components.": "Mods für das offizielle Spiel benötigen Northstar 1.21.0 oder neuer. Repariere oder aktualisiere die Loader-Komponenten.",
     "Multiple Vanilla+ versions were found. Remove duplicate versions in My Mods, then retry.": "Mehrere Vanilla+-Versionen wurden gefunden. Entferne doppelte Versionen unter „Meine Mods“ und versuche es erneut.",
     "Other files occupy the Vanilla+ installation location. They were preserved. Check the conflicting folder, then retry.": "Am Installationsort von Vanilla+ befinden sich andere Dateien. Sie bleiben erhalten. Prüfe den betreffenden Ordner und versuche es erneut.",
     "Vanilla+ files or folder structure are invalid. Installation stopped. Check the Mod folder, then retry.": "Die Dateien oder Ordnerstruktur von Vanilla+ sind ungültig. Die Installation wurde gestoppt. Prüfe den Mod-Ordner und versuche es erneut.",

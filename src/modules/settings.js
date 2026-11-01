@@ -34,6 +34,9 @@ ipcMain.handle("settings-save", async (_event, obj) => {
 // base settings
 var settings = {
 	gamepath: "",
+	globalGamepath: "",
+	chinaSourceGamepath: "",
+	chinaInstallTarget: "",
 	theme: "aurora",
 	uiLanguage: lang.defaultLocale || "zh-CN",
 	modSort: "added",
@@ -154,8 +157,11 @@ async function saveAsync(obj = {}, notify_renderer = true) {
 		return await gate.run("server-mod-settings", async () => {
 			const stopped = await require("./is_running").snapshot();
 			if (!stopped?.ok) throw Object.assign(Error("Unable to check whether the game is running. Please retry."), {code: "PROCESS_QUERY"});
-			if (require("./launch-session").hasGame(stopped)) throw Object.assign(Error("Close Titanfall 2 before switching servers or independent Mod settings."), {code: "GAME_RUNNING"});
-			if (settings.gamepath !== previous.gamepath || settings.nsargs !== previous.nsargs || settings.northstarRegion !== previous.northstarRegion || settings.modProfileServer !== previous.modProfileServer || settings.vanillaModsEnabled !== previous.vanillaModsEnabled || settings.independentServerMods !== previous.independentServerMods) throw Object.assign(Error("The game profile changed. Please retry."), {code: "PROFILE_CHANGED"});
+			const rootTools = require("./game-roots");
+			for (const gameRoot of rootTools.serverTransitionRoots(previous, next)) {
+				if (rootTools.hasGame(stopped, gameRoot)) throw Object.assign(Error("Close Titanfall 2 in the selected game folder before changing server Mod settings."), {code: "GAME_RUNNING"});
+			}
+			if (settings.gamepath !== previous.gamepath || settings.globalGamepath !== previous.globalGamepath || settings.nsargs !== previous.nsargs || settings.northstarRegion !== previous.northstarRegion || settings.modProfileServer !== previous.modProfileServer || settings.vanillaModsEnabled !== previous.vanillaModsEnabled || settings.independentServerMods !== previous.independentServerMods) throw Object.assign(Error("The game profile changed. Please retry."), {code: "PROFILE_CHANGED"});
 			if (mods.sharedImportBusy || mods.isImportBusy() || packages.activeCount > 0) throw Object.assign(Error("A Mod is being installed. Please retry when it completes."), {code: "busy"});
 			const result = require("./server-mod-profiles").transition(previous, next, () => saveDirect(obj, false));
 			// Acknowledgements follow the durable commit. Refresh failures cannot

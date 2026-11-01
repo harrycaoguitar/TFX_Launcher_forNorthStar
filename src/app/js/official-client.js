@@ -9,20 +9,39 @@
   const locks = new Map();
   let status = null, request = null, requestContext = '', queued = null;
   let generation = 0, installing = false, changing = false, externalUpdate = false, progress = null;
-  const context = () => JSON.stringify([settings.gamepath || '',settings.nsargs || '']);
+  let lastStart = null;
+  let pendingStart = null;
+  const context = () => JSON.stringify([settings.gamepath || '',settings.globalGamepath || '',settings.chinaInstallTarget || '',settings.nsargs || '']);
   let observedContext = context();
   function synchronizeContext() {
     const nextContext = context();
     if (nextContext === observedContext) return false;
-    observedContext = nextContext; status = null; generation++;
+    observedContext = nextContext; status = null; generation++; pendingStart = null; lastStart = null;
     return true;
   }
   const enabled = () => settings.vanillaModsEnabled === true;
-  const running = () => typeof is_running !== 'undefined' && is_running;
+  const running = () => window.VyraLaunchAvailability?.rootOccupied(window.VyraGameProcesses?.snapshot, settings, 'vanilla') === true;
+  const modeAvailable = mode => window.VyraLaunchAvailability?.canLaunch(window.VyraGameProcesses?.snapshot, settings, mode, settings.northstarRegion) === true;
   const launching = () => typeof launchPending !== 'undefined' && launchPending;
-  const blocked = () => installing || changing || launching() || running() || window.Settings?.saving || window.VyraClient?.busy || externalUpdate;
+  const blocked = () => installing || changing || launching() || window.Settings?.saving || window.VyraClient?.busy || externalUpdate;
   const t = (key, parameters) => I18n.t('official.' + key, parameters);
   const damaged = value => value?.installState === 'damaged' || ['damaged','needs-repair'].includes(value?.state);
+  function startWhenReady(startGame, expectedContext) {
+    const region = settings.northstarRegion === 'global' ? 'global' : 'cn';
+    const snapshot = window.VyraGameProcesses?.snapshot;
+    const snapshotAllowsStart = snapshot?.ok ? window.VyraLaunchAvailability?.canLaunch(snapshot, settings, 'vanilla', region) === true : true;
+    if (typeof startGame !== 'function' || !enabled() || context() !== expectedContext || !gameDirectoryReady || running() || !snapshotAllowsStart) return false;
+    lastStart = {startGame, context: expectedContext};
+    startGame();
+    return true;
+  }
+  function continuePendingStart() {
+    const pending = pendingStart;
+    if (!pending || request || context() !== pending.context) return;
+    pendingStart = null;
+    if (status?.error || (status?.installed !== true && status?.installed !== false)) return;
+    activate(pending.startGame);
+  }
   const phaseKeys = {checking:'checking',preparing:'preparing',installing:'installing',verifying:'verifying'};
   const errorText = value => window.OfficialErrors?.text(value) || I18n.text(String(value?.error || value?.message || value || t('statusFailed')));
   function dismissNotice() {
@@ -41,6 +60,8 @@
     document.getElementById('officialClientProgressBar').style.width = percent === null ? '35%' : percent + '%';
   }
   function renderAction() {
+    const installingChinaRoot = !gameDirectoryReady && Boolean(settings.chinaInstallTarget);
+    const canInstallChinaRoot = installingChinaRoot && window.VyraLaunchAvailability?.canInstall(window.VyraGameProcesses?.snapshot, settings, 'vanilla', 'cn') === true;
     for (const button of document.querySelectorAll('[data-launch-region],[data-server-region],[data-mode],[data-vanilla-mods],.disable-when-installing,.playBtn')) {
       if (installing) {
         if (!locks.has(button)) locks.set(button,button.disabled);
@@ -52,22 +73,25 @@
     for (const button of choices) {
       const chosen = (button.dataset.vanillaMods === 'true') === enabled();
       button.classList.toggle('selected',chosen); button.setAttribute('aria-pressed',String(chosen));
-      button.disabled = Boolean(blocked());
+      button.disabled = Boolean(blocked()) || running();
     }
-    for (const button of document.querySelectorAll('[data-mode]')) button.disabled = Boolean(blocked());
+    for (const button of document.querySelectorAll('[data-mode]')) button.disabled = !window.VyraLaunchAvailability.controlAvailability({blocked: blocked(), canLaunch: modeAvailable(button.dataset.mode === 'vanilla' ? 'vanilla' : 'northstar')}).canSelect;
     if (launching()) { playButton.disabled = true; return; }
     playButton.setAttribute('aria-busy',String(installing || changing || Boolean(enabled() && request)));
-    playButton.disabled = Boolean(blocked()) || !gameDirectoryReady || Boolean(enabled() && request);
+    playButton.disabled = installingChinaRoot
+      ? Boolean(blocked() || running() || !canInstallChinaRoot)
+      : !window.VyraLaunchAvailability.controlAvailability({blocked: Boolean(blocked() || running() || !gameDirectoryReady || (enabled() && request)), canLaunch: modeAvailable('vanilla')}).canStart;
     if (running()) { playButton.textContent = lang('general.running'); return; }
     if (installing) playButton.textContent = t('installing');
     else if (changing) playButton.textContent = t('saving');
+    else if (installingChinaRoot) playButton.textContent = I18n.current === 'zh-CN' ? '安装国服' : 'Install China game';
     else if (!enabled()) playButton.textContent = lang('gui.launch');
     else if (request) playButton.textContent = t('checking');
     else if (damaged(status)) playButton.textContent = t('repair');
     else if (status?.installed === false) playButton.textContent = t('install');
     else if (status?.installed === true && !status.error) playButton.textContent = lang('gui.launch');
     else playButton.textContent = t('retry');
-    playButton.dataset.clientAction = !enabled() ? 'launch' : installing ? 'installing' : request ? 'checking' : damaged(status) ? 'repair' : status?.installed === false ? 'install' : status?.installed && !status.error ? 'launch' : 'retry-status';
+    playButton.dataset.clientAction = installingChinaRoot ? 'install-root' : !enabled() ? 'launch' : installing ? 'installing' : request ? 'checking' : damaged(status) ? 'repair' : status?.installed === false ? 'install' : status?.installed && !status.error ? 'launch' : 'retry-status';
   }
   function render() {
     detail.hidden = installing;
@@ -105,11 +129,11 @@
       }).catch(error => {
         if (generation === revision && context() === capturedContext) status = {...status,error:error.message,code:error.code};
         return null;
-      }).finally(() => { if (request === pending) request = null; render(); });
+      }).finally(() => { if (request === pending) request = null; render(); continuePendingStart(); });
     request = pending; render(); return pending;
   }
   async function choose(value) {
-    if (blocked() || typeof value !== 'boolean' || value === enabled()) return;
+    if (blocked() || running() || typeof value !== 'boolean' || value === enabled()) return;
     changing = true; dismissNotice(); render();
     try {
       const result = await Settings.savePatch({vanillaModsEnabled:value,modProfileServer:'official'});
@@ -121,9 +145,10 @@
       window.dispatchEvent(new CustomEvent('tfx-official-mode-changed',{detail:{enabled:value}}));
     } finally { changing = false; render(); if (enabled()) void refresh(true); }
   }
-  async function install(repair = false) {
-    if (blocked() || !enabled() || !gameDirectoryReady) return;
-    const capturedContext = context();
+  async function install(repair = false, startGame = null, expectedContext = context()) {
+    if (blocked() || running() || !enabled() || !gameDirectoryReady) return;
+    const capturedContext = expectedContext;
+    if (capturedContext !== context()) return;
     installing = true; progress = {phase:'checking'}; dismissNotice(); render();
     try {
       const result = await ipcRenderer.invoke('vanilla-client-install',repair ? {repair:true} : {});
@@ -131,6 +156,7 @@
       if (result.status) status = {...result.status};
       const fresh = await refresh(true);
       if (!fresh?.installed || fresh.error || damaged(fresh)) throw Object.assign(Error(fresh?.error || t('statusFailed')),{code:fresh?.code});
+      startWhenReady(startGame, capturedContext);
       new Toast({key:'official-client-install',scheme:'success',title:t('complete'),description:t('completeHint'),timeout:4500});
     } catch (error) {
       if (capturedContext === context()) status = {...status,error:error.message,code:error.code};
@@ -138,14 +164,18 @@
     } finally { installing = false; progress = null; render(); window.VyraClient?.renderAction(); }
   }
   function activate(startGame) {
-    if (blocked()) return;
-    if (!gameDirectoryReady) { setpath(); return; }
+    if (blocked() || running()) return;
+    if (!gameDirectoryReady) {
+      if (settings.chinaInstallTarget && window.VyraClient?.installChinaRoot) void window.VyraClient.installChinaRoot(() => activate(startGame));
+      else setpath();
+      return;
+    }
     if (!enabled()) { startGame(); return; }
-    if (request) return;
-    if (damaged(status)) void install(true);
-    else if (status?.installed === false) void install(false);
-    else if (status?.installed === true && !status.error) startGame();
-    else void refresh(true);
+    if (request) { pendingStart = {startGame, context: context()}; return; }
+    if (damaged(status)) void install(true, startGame, context());
+    else if (status?.installed === false) void install(false, startGame, context());
+    else if (status?.installed === true && !status.error) startWhenReady(startGame, context());
+    else { pendingStart = {startGame, context: context()}; void refresh(true); }
   }
   for (const choice of choices) choice.addEventListener('click',() => choose(choice.dataset.vanillaMods === 'true'));
   ipcRenderer.on('vanilla-client-progress',(_event,value) => {
@@ -153,7 +183,7 @@
     progress = {...value}; render();
   });
   ipcRenderer.on('changed-settings',(_event,value) => {
-    if (!value || !['vanillaModsEnabled','gamepath','nsargs'].some(key => Object.prototype.hasOwnProperty.call(value,key))) return;
+    if (!value || !['vanillaModsEnabled','gamepath','globalGamepath','chinaInstallTarget','nsargs'].some(key => Object.prototype.hasOwnProperty.call(value,key))) return;
     synchronizeContext();
     render(); if (!changing && !installing) void refresh(true);
   });
@@ -166,7 +196,19 @@
     const key = typeof value === 'string' ? value : value?.key;
     externalUpdate = !['cli.update.uptodate_short','cli.update.no_internet','cli.update.check_failed'].includes(key); renderAction();
   });
-  for (const channel of ['is-running','launch-status']) ipcRenderer.on(channel,() => renderAction());
+  ipcRenderer.on('launch-status',(_event,value) => {
+    if (value?.state === 'confirmed') lastStart = null;
+    if (value?.state !== 'failed' || value.code !== 'VANILLA_CLIENT_NOT_INSTALLED') {
+      if (value?.state === 'failed') lastStart = null;
+      renderAction(); return;
+    }
+    const retry = lastStart && lastStart.context === context() && enabled() ? lastStart : null;
+    lastStart = null;
+    if (retry) { status = {installed:false,state:'missing',installState:'not-installed'}; void install(false,retry.startGame,retry.context); }
+    renderAction();
+  });
+  for (const channel of ['game-process-snapshot','is-running']) ipcRenderer.on(channel,() => renderAction());
+  window.addEventListener('vyra-game-processes-changed',renderAction);
   window.addEventListener('tfx-settings-saving-changed',() => {
     renderAction();
     // Ordinary preference saves acknowledge their new arguments without an IPC

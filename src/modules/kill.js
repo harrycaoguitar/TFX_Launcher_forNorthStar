@@ -1,8 +1,10 @@
 const execFile = require("child_process").execFile;
 const ipcMain = require("electron").ipcMain;
+const running = require("./is_running");
+const gameRoots = require("./game-roots");
 
-ipcMain.on("kill-game", () => {
-	kill.game();
+ipcMain.on("kill-game", (_event, root) => {
+	kill.game(root);
 })
 
 ipcMain.on("kill-origin", () => {
@@ -34,16 +36,19 @@ kill.origin = async () => {
 	return false;
 }
 
-kill.game = async () => {
-	let tf2 = await kill("Titanfall2.exe");
-	let northstar = await kill("NorthstarLauncher.exe");
-	let tf2_unpacked = await kill("Titanfall2-unpacked.exe");
-
-	if (tf2 || northstar || tf2_unpacked) {
-		return true;
-	}
-
-	return false;
+kill.game = async (root, dependencies = {}) => {
+	if (typeof root !== "string" || !root.trim()) return false;
+	const snapshot = await (dependencies.snapshot || running.snapshot)();
+	const processes = gameRoots.processesForRoot(snapshot, root);
+	if (!processes) return false;
+	const pids = [...new Set(processes.map(process => Number(process.pid)).filter(pid => Number.isSafeInteger(pid) && pid > 0))];
+	const terminate = dependencies.execFile || execFile;
+	const results = await Promise.all(pids.map(pid => new Promise(resolve => {
+		try {
+			terminate("taskkill.exe", ["/PID", String(pid), "/F"], {windowsHide: true}, error => resolve(!error));
+		} catch (_) {resolve(false);}
+	})));
+	return results.some(Boolean);
 }
 
 module.exports = kill;

@@ -1,12 +1,14 @@
 "use strict";
 const fs=require("fs"),path=require("path"),{ipcMain}=require("electron"),win=require("../win"),settings=require("./settings");
-const {splitArguments}=require("./launch-session"),network=require("./northstar-region"),findgame=require("./findgame");
+const {splitArguments}=require("./launch-session"),network=require("./northstar-region");
 const launcherVersion=require("./launcher-version")();
+const gameRoots=require("./game-roots");
 function regularFile(filename,maxBytes) {
   try {const stat=fs.lstatSync(filename);return stat.isFile()&&!stat.isSymbolicLink()&&stat.size<=maxBytes;}catch(_){return false;}
 }
 function northstar(conf=settings()) {
-  const root=findgame.validateGamePath(conf.gamepath);if(!root||!regularFile(path.join(root,"NorthstarLauncher.exe"),128*1024*1024))return "unknown";
+  let root;try{root=gameRoots.resolveGameRoot(conf,{gameVersion:"northstar",region:network.normalize(conf.northstarRegion)});}catch(_){return "unknown";}
+  if(!regularFile(path.join(root,"NorthstarLauncher.exe"),128*1024*1024))return "unknown";
   let profile;try{profile=network.resolveProfile(root,splitArguments(conf.nsargs||""));}catch(_){return "unknown";}
   const versions=[];
   for(const name of ["Northstar.Client","Northstar.Custom","Northstar.CustomServers"]){
@@ -21,15 +23,16 @@ function northstar(conf=settings()) {
   return versions.every(value=>value===versions[0])?"v"+versions[0]:"unknown";
 }
 function titanfall(conf=settings()) {
-  const root=findgame.validateGamePath(conf.gamepath);if(!root)return "unknown";
+  let root;try{root=gameRoots.resolveGameRoot(conf,{gameVersion:"northstar",region:network.normalize(conf.northstarRegion)});}catch(_){return "unknown";}
   const filename=path.join(root,"gameversion.txt");
   try{return regularFile(filename,4096)?fs.readFileSync(filename,"utf8").trim()||"unknown":"unknown";}catch(_){return "unknown";}
 }
 const version={northstar,titanfall,launcher:()=>launcherVersion,viper:()=>launcherVersion};
 version.send_info=async()=>{
-  const conf={...settings()},clientContext={gamePath:conf.gamepath||"",nsargs:conf.nsargs||"",region:network.normalize(conf.northstarRegion)};
+  const conf={...settings()},clientContext={gamePath:conf.gamepath||"",globalGamePath:conf.globalGamepath||"",nsargs:conf.nsargs||"",region:network.normalize(conf.northstarRegion)};
   const client=await require("./northstar-clients").status(conf.northstarRegion,conf);
   try {win().send("version",{ns:northstar(conf),tf2:titanfall(conf),vp:"v"+launcherVersion,client,clientContext});}catch(_){/* A closed renderer does not invalidate the client check. */}
 };
 ipcMain.on("get-version",()=>{void version.send_info();});
 module.exports=version;
+

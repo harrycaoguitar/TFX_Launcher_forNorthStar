@@ -1,0 +1,18 @@
+{
+  "InstallExitCode": 0,
+  "InstalledDirectory": "D:\\文档\\ChatGPT\\北极星项目ttf2\\release-1.1.0\\安装验证 v110 自选目录\\TFX Launcher",
+  "InstallerLanguage": "1033",
+  "FileVersion": "1.1.0.0",
+  "ProductVersion": "1.1.0.0",
+  "AppAsarSHA256": "76540044895C30EB46101C825822718F72070ED19B1718B3EE3A8024F6D53468",
+  "VerifiedFiles": 121,
+  "DesktopShortcut": true,
+  "StartMenuShortcut": true,
+  "AppProcessId": 11316,
+  "AppExecutable": "D:\\文档\\ChatGPT\\北极星项目ttf2\\release-1.1.0\\安装验证 v110 自选目录\\TFX Launcher\\TFX-Launcher.exe",
+  "PendingUninstall": false,
+  "UninstallExitCode": 0,
+  "ApplicationRemoved": true,
+  "ExtraFilesPreserved": true,
+  "ProfilePreserved": true
+}

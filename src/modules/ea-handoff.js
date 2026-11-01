@@ -68,10 +68,10 @@ async function responsiveClients(processes) {
 // Cold-start EA before the game, so its initialization cannot consume and drop
 // the only game request. The caller keeps the exact game/client selection and
 // checks it throughout this bounded wait. Authentication remains EA's own UI.
-async function prepare({snapshot, initial, guard = () => {}, onStage = () => {}, find = findClient, start = startClient, responsive = responsiveClients, now = Date.now, sleep = ms => new Promise(resolve => setTimeout(resolve, ms)), timeoutMs = 60000, settleMs = 1500, pollMs = 750, forceWait = false}) {
+async function prepare({snapshot, initial, root, guard = () => {}, onStage = () => {}, find = findClient, start = startClient, responsive = responsiveClients, now = Date.now, sleep = ms => new Promise(resolve => setTimeout(resolve, ms)), timeoutMs = 60000, settleMs = 1500, pollMs = 750, forceWait = false}) {
   let state = initial || await snapshot();
   if (!state?.ok) throw platformError("EA_PROCESS_QUERY_FAILED", "无法读取 EA App 进程，请稍后重试启动。");
-  if (hasGame(state)) throw platformError("GAME_ALREADY_RUNNING", "游戏已由其他程序启动，请等待启动完成或先退出游戏。");
+  if (hasGame(state, root)) throw platformError("GAME_ALREADY_RUNNING", "所选游戏目录已有游戏，请先退出后重试。");
   const cold = !clientProcesses(state).length;
   if (!cold && !forceWait && (await responsive(clientProcesses(state))).length) {onStage("ready", {cold: false}); return {cold: false, ready: true};}
   const deadline = now() + timeoutMs;
@@ -84,7 +84,7 @@ async function prepare({snapshot, initial, guard = () => {}, onStage = () => {},
     await guard();
     state = await snapshot();
     if (!state?.ok) throw platformError("EA_PROCESS_QUERY_FAILED", "无法读取 EA App 进程，请稍后重试启动。");
-    if (hasGame(state)) throw platformError("GAME_ALREADY_RUNNING", "游戏已由其他程序启动，请等待启动完成或先退出游戏。");
+    if (hasGame(state, root)) throw platformError("GAME_ALREADY_RUNNING", "所选游戏目录已有游戏，请先退出后重试。");
     if (!clientProcesses(state).length) {
       onStage("starting", {cold: true});
       try {await start(executable);} catch (error) {throw platformError("EA_START_FAILED", "EA App 未能启动，请打开并登录 EA App 后重试。" + (error?.code ? "（" + error.code + "）" : ""));}
@@ -95,7 +95,7 @@ async function prepare({snapshot, initial, guard = () => {}, onStage = () => {},
   while (now() < deadline) {
     await guard();
     state = await snapshot();
-    if (state?.ok && hasGame(state)) throw platformError("GAME_ALREADY_RUNNING", "游戏已由其他程序启动，请等待启动完成或先退出游戏。");
+    if (state?.ok && hasGame(state, root)) throw platformError("GAME_ALREADY_RUNNING", "所选游戏目录已有游戏，请先退出后重试。");
     const clients = clientProcesses(state);
     const ready = state?.ok ? await responsive(clients) : [];
     const key = ready.map(String).sort().join(",");

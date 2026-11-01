@@ -2,7 +2,7 @@
 const fs = require("fs"), path = require("path"), crypto = require("crypto");
 const {app,ipcMain} = require("electron");
 const settings = require("./settings"), network = require("./northstar-region");
-const {splitArguments,hasGame} = require("./launch-session");
+const {splitArguments} = require("./launch-session");
 const {createClientSwitcher,validateManifest,validateBundle} = require("./northstar-client");
 const {ClientBundleCache} = require("./northstar-client-cache");
 const win = require("../win");
@@ -16,9 +16,8 @@ function engine() {
   if (!singleton) singleton = createClientSwitcher({bundleRoot:cache.sourceRoot,stateRoot:path.join(dataRoot,"transactions"),bundleProvider:channel=>cache.descriptor(channel),processCheck:()=>require("./is_running").snapshot(),progress:payload=>send("northstar-client-progress",{...payload,region:payload.channel||activeRegion,phase:payload.phase==="recovering"?"checking":payload.phase})});
   return singleton;
 }
-function context(conf = settings()) {
-  const gameRoot = require("./findgame").validateGamePath(conf.gamepath);
-  if (!gameRoot) throw Error("游戏目录已失效或缺少 Titanfall2.exe，请重新选择游戏安装目录。");
+function context(conf = settings(), selectedRegion = network.normalize(conf.northstarRegion), explicitRoot) {
+  const gameRoot = explicitRoot || require("./game-roots").resolveGameRoot(conf, {gameVersion: "northstar", region: selectedRegion});
   const profilePath = network.resolveProfile(gameRoot,splitArguments(conf.nsargs||""));
   if(path.resolve(profilePath).toLowerCase()===path.resolve(gameRoot).toLowerCase())throw Error("北极星配置目录必须位于游戏目录内");
   return {gameRoot,profile:path.relative(gameRoot,profilePath).split(path.sep).join("/")};
@@ -29,7 +28,7 @@ async function metadata(filename) {
   return JSON.parse(await fs.promises.readFile(filename,"utf8"));
 }
 async function trustedProxyFingerprints(gameRoot, fingerprint) {
-  const selection=context({...settings(),gamepath:gameRoot}), ctx=await engine().context(selection.gameRoot,selection.profile), result=[];
+  const conf=settings(), selectedRegion=network.normalize(conf.northstarRegion), selection=context(conf,selectedRegion,gameRoot), ctx=await engine().context(selection.gameRoot,selection.profile), result=[];
   const proxy="bin/x64_retail/wsock32.dll";
   const matches=manifest=>manifest.files.some(file=>file.path.toLowerCase()===proxy&&(!fingerprint||file.size===fingerprint.size&&file.sha256===fingerprint.sha256));
   const add=async(directory,channel,expectedDigest)=>{
@@ -80,7 +79,7 @@ async function targetVersion(region,info,conf) {
   let version=manifest.version;
   const snapshot=info?.backupRoot&&path.join(info.backupRoot,"channel-cache",region,"manifest.json");
   if(snapshot&&fs.existsSync(snapshot)){
-    const local=validateManifest(await metadata(snapshot),region), ctx=context(conf);
+    const local=validateManifest(await metadata(snapshot),region), ctx=context(conf,region);
     if(local.provenance?.kind!=="private-installed-snapshot"||path.resolve(local.provenance.gameRoot).toLowerCase()!==path.resolve(ctx.gameRoot).toLowerCase()||local.provenance.profile.toLowerCase()!==ctx.profile.toLowerCase())throw Error("北极星本地客户端快照来源无效");
     if(require("./releases").compareVersions(local.version,version)>0)version=local.version;
   }
@@ -91,7 +90,7 @@ async function status(region, configuration) {
   const conf={...(configuration||settings())};
   region = network.normalize(region || conf.northstarRegion);
   try {
-    const info = await engine().inspect({...context(conf),includeAvailable:false}), version=await targetVersion(region,info,conf);
+    const info = await engine().inspect({...context(conf,region),includeAvailable:false}), version=await targetVersion(region,info,conf);
     const selected=info.available?.[region]||info.channels?.[region];
     const active=selected?.active ?? (info.installed?.channel===region);
     const installed=selected?.installed ?? active;
@@ -127,7 +126,7 @@ async function ensure({conf=settings(),directory,repair=false,allowInstall=false
   try {
     progress({region,phase:"checking",percent:0});
     await guardSelection();
-    const args={...context(conf),channel:region,repair:repair===true,allowInstall:allowInstall===true,refresh:refresh===true,refreshClient:Boolean(directory)};
+    const args={...context(conf,region),channel:region,repair:repair===true,allowInstall:allowInstall===true,refresh:refresh===true,refreshClient:Boolean(directory)};
     const switcher=directory||guard||onProgress?createClientSwitcher({bundleRoot:cache.sourceRoot,stateRoot:path.join(dataRoot,"transactions"),bundleProvider:async channel=>directory&&channel===region?{directory,preferSnapshot:false}:cache.descriptor(channel),processCheck:async()=>{await guardSelection();const snapshot=await require("./is_running").snapshot();await guardSelection();return snapshot;},progress}):engine();
     const result=await switcher.ensure(args);await switcher.assertReady(args);
     ipcMain.emit("get-version");ipcMain.emit("gui-getmods");return result;
@@ -137,23 +136,31 @@ async function ensure({conf=settings(),directory,repair=false,allowInstall=false
 }
 async function assertReady(conf=settings()) {return engine().assertReady(context(conf));}
 async function recover(conf=settings()) {return engine().recover(context(conf));}
-async function stopped() {
+async function stopped(gameRoot) {
   const snapshot=await require("./is_running").snapshot();
   if(!snapshot?.ok)throw Error("无法确认游戏进程，已停止北极星文件切换");
-  if(hasGame(snapshot))throw Error("请先退出游戏及北极星进程，再安装客户端");
+  if(require("./game-roots").hasGame(snapshot,gameRoot))throw Error("请先退出所选游戏目录中的 Titanfall 2 及北极星进程，再安装客户端");
+}
+function requestOptions(options) {
+  return options===undefined ? {} : options&&typeof options==="object"&&!Array.isArray(options) ? options : null;
+}
+function invalidRequest() {
+  return {ok:false,error:"北极星客户端请求参数无效",code:"INVALID_REQUEST"};
 }
 function selectedUnchanged(conf) {
   const current=settings();
-  if(network.normalize(current.northstarRegion)!==conf.northstarRegion||current.gamepath!==conf.gamepath||current.nsargs!==conf.nsargs)throw Error("客户端选择或游戏目录已改变，请重新安装所选客户端。");
+  if(network.normalize(current.northstarRegion)!==conf.northstarRegion||current.gamepath!==conf.gamepath||current.globalGamepath!==conf.globalGamepath||current.nsargs!==conf.nsargs)throw Error("客户端选择或游戏目录已改变，请重新安装所选客户端。");
 }
 async function install(options={}) {
+  options=requestOptions(options);
+  if(!options)return invalidRequest();
   const original={...settings()}, region=options.region===undefined?network.normalize(original.northstarRegion):options.region;
   if(!["cn","global"].includes(region))return {ok:false,region,error:"请选择国服或全球服北极星客户端",code:"INVALID_REGION"};
   const conf=Object.freeze({...original,northstarRegion:region});
   let result;
   try {
     result=await gate.run("client-install",async()=>{
-      selectedUnchanged(conf);context(conf);await stopped();
+      selectedUnchanged(conf);const selection=context(conf,region);await stopped(selection.gameRoot);
       // Explicit install is offline-capable. A validated newer cached release
       // may be used; a distribution cache alone is never an installed client.
       const value=await ensure({conf,allowInstall:true,refresh:true,repair:options.repair===true,guard:()=>selectedUnchanged(conf)});
@@ -165,9 +172,12 @@ async function install(options={}) {
   }
   // Refresh from the captured game/profile rather than a different selection
   // made while the operation was completing. No installation ever spawns.
-  result.status=await status(region,conf);
+  if(result.ok) result.status=await status(region,conf);
   return result;
 }
-ipcMain.handle("northstar-client-status",(_event,options={})=>status(options.region));
+ipcMain.handle("northstar-client-status",(_event,options={})=>{
+  options=requestOptions(options);
+  return options ? status(options.region) : invalidRequest();
+});
 ipcMain.handle("northstar-client-install",(_event,options={})=>install(options));
 module.exports={status,ensure,assertReady,recover,install,cache,context,trustedProxyFingerprints};

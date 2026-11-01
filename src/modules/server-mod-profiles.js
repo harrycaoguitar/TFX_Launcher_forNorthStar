@@ -19,8 +19,15 @@ function assertUniqueCore(mods) {
   if ([...state.CORE_NAMES, VANILLA_PLUS].some(name => mods.filter(mod => mod.name === name).length > 1)) throw error("Duplicate client core Mods were found. Remove duplicate core Mods first.");
 }
 function context(conf) {
-  if (!conf.gamepath || !fs.existsSync(conf.gamepath)) return null;
-  const profile = region.resolveProfile(conf.gamepath, splitArguments(conf.nsargs || ""));
+	let gameRoot, profile;
+	if (conf.profileDirectory) {
+		profile = path.resolve(conf.profileDirectory);
+		if (!fs.existsSync(profile)) return null;
+	} else {
+		try {gameRoot = require("./game-roots").gameRootForServer(conf, selectedServer(conf));}catch (_) {return null;}
+		if (!fs.existsSync(gameRoot)) return null;
+		profile = region.resolveProfile(gameRoot, splitArguments(conf.nsargs || ""));
+	}
   if (!fs.existsSync(profile)) return null;
   state.checked(path.join(profile, ".tfx-path-check"));
   return {profile: fs.realpathSync(profile), region: selectedServer(conf)};
@@ -150,7 +157,7 @@ async function prepare(profile, selectedRegion, {guard, coreEnabled = true} = {}
   const mods = state.installed(profile, {requireVersion: true});
   if (selectedRegion === "official") assertVanillaPlus(mods);
   else if (coreEnabled && mods.filter(mod => mod.required).length !== state.CORE_NAMES.length) throw error("Northstar core Mods are incomplete. Repair the selected client first.");
-  const conf = {gamepath: profile, nsargs: "-profile .", northstarRegion: selectedRegion, modProfileServer: selectedRegion, independentServerMods: true};
+  const conf = {profileDirectory: profile, gamepath: profile, nsargs: "-profile .", northstarRegion: selectedRegion, modProfileServer: selectedRegion, independentServerMods: true};
   // resolveProfile(profile, -profile .) preserves the exact validated profile.
   const writes = plansFor(conf, conf);
   await guard?.();

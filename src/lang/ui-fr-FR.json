@@ -1,6 +1,7 @@
 {
   "locale": "fr-FR",
   "strings": {
+    "EA emulator": "Émulateur EA",
     "Save your changes before leaving?": "Enregistrer les modifications avant de quitter ?",
     "You have unsaved changes. Save them before leaving, discard them, or keep editing.": "Des modifications ne sont pas enregistrées. Enregistrez-les avant de quitter, abandonnez-les ou poursuivez les modifications.",
     "Save and leave": "Enregistrer et quitter",
@@ -1581,7 +1582,7 @@
     "The launch mode, folder or components changed. External changes were preserved. Check again and retry.": "Le mode de lancement, le dossier ou les composants ont changé. Les modifications externes ont été préservées. Vérifiez à nouveau, puis réessayez.",
     "Another operation is in progress. Wait for it to finish, then try again.": "Une autre opération est en cours. Attendez sa fin, puis réessayez.",
     "Official-game Mod components are missing or need repair. Install Vanilla+ on the Play page.": "Les composants de Mods du jeu officiel sont absents ou doivent être réparés. Installez Vanilla+ sur la page de lancement.",
-    "Official-game Mods require Northstar 1.29.0 or later. Repair or update the loader components.": "Les Mods du jeu officiel nécessitent Northstar 1.29.0 ou une version ultérieure. Réparez ou mettez à jour les composants de chargement.",
+    "Official-game Mods require Northstar 1.21.0 or later. Repair or update the loader components.": "Les Mods du jeu officiel nécessitent Northstar 1.21.0 ou une version ultérieure. Réparez ou mettez à jour les composants de chargement.",
     "Multiple Vanilla+ versions were found. Remove duplicate versions in My Mods, then retry.": "Plusieurs versions de Vanilla+ ont été détectées. Supprimez les doublons dans « Mes Mods », puis réessayez.",
     "Other files occupy the Vanilla+ installation location. They were preserved. Check the conflicting folder, then retry.": "D’autres fichiers occupent l’emplacement d’installation de Vanilla+. Ils ont été préservés. Vérifiez le dossier en conflit, puis réessayez.",
     "Vanilla+ files or folder structure are invalid. Installation stopped. Check the Mod folder, then retry.": "Les fichiers ou la structure des dossiers de Vanilla+ sont invalides. L’installation a été interrompue. Vérifiez le dossier des Mods, puis réessayez.",

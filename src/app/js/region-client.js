@@ -16,9 +16,11 @@
   let progress = null;
   let installing = null;
   let externalUpdate = false;
+  let pendingStart = null;
   const installationLocks = new Map();
+  let lastStart = null;
   const region = () => settings.northstarRegion === 'global' ? 'global' : 'cn';
-  const context = () => JSON.stringify([settings.gamepath || '', settings.nsargs || '']);
+  const context = () => JSON.stringify([settings.gamepath || '', settings.globalGamepath || '', settings.nsargs || '']);
   let observedContext = context();
   const copy = (zh,en) => window.I18n?.current === 'zh-CN' ? zh : window.I18n?.text(en) || en;
   const name = value => value === 'global' ? (copy("全球服","Global")) : value === 'cn' ? (copy("国服","China")) : (copy("未识别的客户端","Unknown client"));
@@ -27,9 +29,31 @@
   const translatedError = value => window.I18n?.text(String(value || '')) || String(value || '');
   const damaged = status => status?.installState === 'damaged' || status?.state === 'needs-repair';
   const launchBusy = () => typeof launchPending !== 'undefined' && launchPending;
-  const gameRunning = () => typeof is_running !== 'undefined' && is_running;
+  const rootAvailable = (selected = region()) => window.VyraLaunchAvailability?.canLaunch(window.VyraGameProcesses?.snapshot, settings, 'northstar', selected) === true;
+  const rootOccupied = (selected = region()) => window.VyraLaunchAvailability?.rootOccupied(window.VyraGameProcesses?.snapshot, settings, 'northstar', selected) === true;
+  const directoryReady = (selected = region()) => window.VyraLaunchAvailability?.directoryReady(settings, 'northstar', selected, {cn: gameDirectoryReady, global: globalGameDirectoryReady}) === true;
+  const requestDirectory = (selected = region()) => selected === 'global' ? setglobalpath() : setpath();
   const preferencesBusy = () => Boolean(window.Settings?.saving || window.OfficialClient?.busy);
+  function startWhenReady(startGame, selected, expectedContext) {
+    const snapshot = window.VyraGameProcesses?.snapshot;
+    const snapshotAllowsStart = snapshot?.ok ? window.VyraLaunchAvailability?.canLaunch(snapshot, settings, 'northstar', selected) === true : true;
+    if (typeof startGame !== 'function' || region() !== selected || context() !== expectedContext || !directoryReady(selected) || rootOccupied(selected) || !snapshotAllowsStart) return false;
+    lastStart = {startGame, region: selected, context: expectedContext};
+    startGame();
+    return true;
+  }
+  function continuePendingStart(selected) {
+    const pending = pendingStart;
+    if (!pending || pending.region !== selected || region() !== selected || pending.context !== context() || requests.has(selected)) return;
+    pendingStart = null;
+    const status = statuses.get(selected);
+    if (status?.error || (!damaged(status) && status?.installed !== true && status?.installed !== false)) return;
+    activate(pending.startGame);
+  }
+  const selectionBlocked = () => Boolean(installing || launchBusy() || externalUpdate || preferencesBusy());
+  const controlAvailability = (selected = region()) => window.VyraLaunchAvailability.controlAvailability({blocked: selectionBlocked(), canLaunch: rootAvailable(selected)});
   const phaseCopy = phase => ({
+    copying: region() === 'global' ? copy("正在复制全球服游戏文件","Copying Global game files") : copy("正在复制国服游戏文件","Copying China game files"),
     checking: copy("正在检查客户端文件","Checking client files"),
     preparing: copy("正在准备客户端文件","Preparing client files"),
     switching: copy("正在切换客户端文件","Switching client files"),
@@ -51,7 +75,11 @@
     versionLabel.title = name(selected) + (validVersion(status?.version) ? ' · ' + status.version : '');
     const activeProgress = progress && progress.region === selected && phaseCopy(progress.phase);
     detailLabel.classList.toggle('failed', Boolean(status?.error) || damaged(status));
-    if (activeProgress) detailLabel.textContent = preparationText();
+    if (progress?.phase === 'copying' && progress.region === selected) {
+      const percent = Number.isFinite(progress.percent) ? ' · ' + Math.round(Math.min(100, Math.max(0, progress.percent))) + '%' : '';
+      detailLabel.textContent = phaseCopy('copying') + percent;
+    }
+    else if (activeProgress) detailLabel.textContent = preparationText();
     else if (status?.error) detailLabel.textContent = translatedError(status.error);
     else if (requests.has(selected)) detailLabel.textContent = copy("正在检查对应客户端是否已安装…","Checking whether this client is installed…");
     else if (damaged(status)) detailLabel.textContent = copy("客户端文件不完整 · 需要修复","Client files are incomplete · Repair required");
@@ -80,14 +108,26 @@
         installationLocks.delete(button);
       }
     }
-    for (const button of document.querySelectorAll('[data-launch-region],[data-server-region],[data-vanilla-mods]')) button.disabled = locked || launchBusy() || gameRunning() || externalUpdate || preferencesBusy();
+    for (const button of document.querySelectorAll('[data-launch-region]')) button.disabled = !controlAvailability(button.dataset.launchRegion).canSelect;
+    for (const button of document.querySelectorAll('[data-server-region]')) button.disabled = !controlAvailability(button.dataset.serverRegion).canSelect;
+    for (const button of document.querySelectorAll('[data-vanilla-mods]')) button.disabled = !controlAvailability('cn').canSelect;
     if (launchBusy() || preferencesBusy()) { playButton.disabled = true; return; }
+    if (!directoryReady(selected)) {
+      playButton.setAttribute('aria-busy', 'false');
+      const canInstallRoot = selected === 'global' ? globalGameDirectorySelected : Boolean(settings.chinaInstallTarget && chinaGameDirectorySelected);
+      playButton.dataset.clientAction = canInstallRoot ? (locked ? 'installing-root' : 'install-root') : 'select-directory';
+      playButton.textContent = canInstallRoot
+        ? (locked ? (selected === 'global' ? copy('正在安装全球服游戏…','Installing Global game…') : copy('正在安装国服游戏…','Installing China game…')) : (selected === 'global' ? copy('安装全球服','Install Global game') : copy('安装国服','Install China game')))
+        : copy('选择{client}目录', 'Select {client} folder').replaceAll('{client}', name(selected));
+      playButton.disabled = selectionBlocked() || Boolean(canInstallRoot && window.VyraLaunchAvailability?.canInstall(window.VyraGameProcesses?.snapshot, settings, 'northstar', selected) !== true);
+      return;
+    }
     playButton.setAttribute('aria-busy', String(locked || requests.has(selected)));
     playButton.dataset.clientAction = locked ? 'installing' : requests.has(selected) ? 'checking' : damaged(status) ? 'repair' : status?.installed === false ? 'install' : status?.installed === true ? 'launch' : 'retry-status';
     if (locked) {
       playButton.textContent = installing.repair ? copy('正在修复…','Repairing…') : copy('正在安装…','Installing…');
       playButton.disabled = true;
-    } else if (gameRunning()) {
+    } else if (rootOccupied()) {
       playButton.textContent = copy("运行中","Running");
       playButton.disabled = true;
     } else if (requests.has(selected)) {
@@ -98,15 +138,19 @@
       else if (status?.installed === false) playButton.textContent = installLabel(selected);
       else if (status?.installed === true && !status?.error) playButton.textContent = copy("启动游戏","Play");
       else playButton.textContent = copy("重新检查客户端","Retry client check");
-      playButton.disabled = !gameDirectoryReady || externalUpdate;
+      const installAction = damaged(status) || status?.installed === false;
+      const actionAvailable = installAction
+        ? window.VyraLaunchAvailability?.canInstall(window.VyraGameProcesses?.snapshot, settings, 'northstar', selected) === true
+        : controlAvailability(selected).canStart;
+      playButton.disabled = !directoryReady(selected) || !actionAvailable;
     }
     if (externalUpdate) {
       for (const button of document.querySelectorAll('[data-launch-region],[data-server-region],[data-vanilla-mods]')) button.disabled = true;
       playButton.disabled = true;
     }
   }
-  async function install(selected, repair) {
-    if (installing || externalUpdate || launchBusy() || gameRunning() || preferencesBusy()) return;
+  async function install(selected, repair, startGame = null, expectedContext = context()) {
+    if (installing || externalUpdate || launchBusy() || rootOccupied(selected) || preferencesBusy()) return;
     dismissInstallNotices();
     installing = {region: selected, repair};
     progress = {region: selected, phase: 'checking'};
@@ -117,11 +161,12 @@
       if (result?.status?.region === selected) statuses.set(selected, {...result.status});
       if (!result || result.region !== selected || !result.ok) throw new Error(result?.error || (copy("客户端安装失败，请重试。","Client installation failed. Try again.")));
       revisions.set(selected, (revisions.get(selected) || 0) + 1);
-      // Installing never launches the game. Keep the lock until fresh installed
-      // state is received so a double click cannot turn into a launch request.
+      // Continue only after fresh installed state has been received; a double
+      // click cannot bypass the install lock or the selected-root checks.
       const fresh = await refresh(selected, true);
       if (!fresh?.installed || fresh.error || damaged(fresh)) throw new Error(fresh?.error || (copy("无法确认客户端安装结果，请重新检查。","Installed client could not be verified. Check again.")));
-      new Toast({key: 'northstar-client-install', scheme: 'success', title: copy("客户端已安装","Client installed"), description: copy('现在可以启动{client}。','You can now launch {client}.').replaceAll('{client}',name(selected)), timeout: 3500});
+      const continued = startWhenReady(startGame, selected, expectedContext);
+      new Toast({key: 'northstar-client-install', scheme: 'success', title: copy("客户端已安装","Client installed"), description: continued ? copy('正在启动{client}…','Starting {client}…').replaceAll('{client}',name(selected)) : copy('现在可以启动{client}。','You can now launch {client}.').replaceAll('{client}',name(selected)), timeout: 3500});
     } catch (error) {
       const message = error?.message || String(error);
       statuses.set(selected, {...statuses.get(selected), region: selected, error: message});
@@ -133,22 +178,97 @@
       render();
     }
   }
+  async function installGlobalRootAndClient(startGame = null) {
+    if (installing || externalUpdate || launchBusy() || rootOccupied('global') || preferencesBusy()) return;
+    dismissInstallNotices();
+    installing = {region: 'global', repair: false, root: true};
+    progress = {region: 'global', phase: 'copying', percent: 0};
+    render();
+    try {
+      const root = await ipcRenderer.invoke('global-game-root-install');
+      if (!root?.ok || typeof root.root !== 'string') throw new Error(root?.error || copy('全球服游戏文件安装失败，请重试。','Global game installation failed. Try again.'));
+      settings.globalGamepath = root.root;
+      globalGameDirectoryReady = true;
+      globalGameDirectorySelected = true;
+      statuses.delete('global');
+      revisions.set('global', (revisions.get('global') || 0) + 1);
+      progress = {region: 'global', phase: 'checking'};
+      installing = null;
+      render();
+      await install('global', false, startGame, context());
+    } catch (error) {
+      const message = error?.message || String(error);
+      statuses.set('global', {...statuses.get('global'), region: 'global', error: message});
+      revisions.set('global', (revisions.get('global') || 0) + 1);
+      new Toast({key: 'northstar-client-install', scheme: 'error', title: copy('全球服安装失败','Global installation failed'), description: translatedError(message), timeout: 9000});
+    } finally {
+      installing = null;
+      progress = null;
+      render();
+    }
+  }
+  async function installChinaRootAndClient(startGame = null, installClient = true) {
+    if (installing || externalUpdate || launchBusy() || rootOccupied('cn') || preferencesBusy()) return;
+    dismissInstallNotices();
+    installing = {region: 'cn', repair: false, root: true};
+    progress = {region: 'cn', phase: 'copying', percent: 0};
+    render();
+    try {
+      const root = await ipcRenderer.invoke('china-game-root-install');
+      if (!root?.ok || typeof root.root !== 'string') throw new Error(root?.error || copy('国服游戏文件安装失败，请重试。','China game installation failed. Try again.'));
+      settings.gamepath = root.root;
+      settings.chinaInstallTarget = '';
+      gameDirectoryReady = true;
+      chinaGameDirectoryReady = true;
+      chinaGameDirectorySelected = true;
+      statuses.delete('cn');
+      revisions.set('cn', (revisions.get('cn') || 0) + 1);
+      progress = {region: 'cn', phase: 'checking'};
+      installing = null;
+      render();
+      if (installClient) await install('cn', false, startGame, context());
+      else if (typeof startGame === 'function') {installing = null; progress = null; render(); startGame();}
+    } catch (error) {
+      const message = error?.message || String(error);
+      statuses.set('cn', {...statuses.get('cn'), region: 'cn', error: message});
+      revisions.set('cn', (revisions.get('cn') || 0) + 1);
+      new Toast({key: 'northstar-client-install', scheme: 'error', title: copy('国服安装失败','China installation failed'), description: translatedError(message), timeout: 9000});
+    } finally {
+      installing = null;
+      progress = null;
+      render();
+    }
+  }
   function activate(startGame) {
-    if (installing || requests.has(region()) || externalUpdate || launchBusy() || gameRunning() || preferencesBusy()) return;
-    if (!gameDirectoryReady) { setpath(); return; }
-    const status = statuses.get(region());
-    if (damaged(status)) void install(region(), true);
-    else if (status?.installed === false) void install(region(), false);
-    else if (status?.installed === true && !status?.error) startGame();
-    else void refresh(region(), true);
+    const selected = region();
+    if (installing || externalUpdate || launchBusy() || rootOccupied(selected) || preferencesBusy()) return;
+    if (!directoryReady(selected)) {
+      if (selected === 'global' && globalGameDirectorySelected) void installGlobalRootAndClient(startGame);
+      else if (selected === 'cn' && settings.chinaInstallTarget && chinaGameDirectorySelected) void installChinaRootAndClient(startGame);
+      else requestDirectory(selected);
+      return;
+    }
+    if (requests.has(selected)) { pendingStart = {startGame, region: selected, context: context()}; return; }
+    const status = statuses.get(selected);
+    if (damaged(status)) void install(selected, true, startGame, context());
+    else if (status?.installed === false) void install(selected, false, startGame, context());
+    else if (status?.installed === true && !status?.error) startWhenReady(startGame, selected, context());
+    else { pendingStart = {startGame, region: selected, context: context()}; void refresh(selected, true); }
   }
   function reinstallIfNeeded() {
-    if (installing || requests.has(region()) || externalUpdate || launchBusy() || gameRunning() || preferencesBusy()) return true;
-    if (!gameDirectoryReady) { setpath(); return true; }
-    const status = statuses.get(region());
-    if (damaged(status)) { void install(region(), true); return true; }
-    if (status?.installed === false) { void install(region(), false); return true; }
-    if (status?.installed !== true || status?.error) { void refresh(region(), true); return true; }
+    const selected = region();
+    if (installing || externalUpdate || launchBusy() || rootOccupied(selected) || preferencesBusy()) return true;
+    if (!directoryReady(selected)) {
+      if (selected === 'global' && globalGameDirectorySelected) void installGlobalRootAndClient();
+      else if (selected === 'cn' && settings.chinaInstallTarget && chinaGameDirectorySelected) void installChinaRootAndClient();
+      else requestDirectory(selected);
+      return true;
+    }
+    if (requests.has(selected)) return true;
+    const status = statuses.get(selected);
+    if (damaged(status)) { void install(selected, true); return true; }
+    if (status?.installed === false) { void install(selected, false); return true; }
+    if (status?.installed !== true || status?.error) { void refresh(selected, true); return true; }
     return false;
   }
   async function refresh(selected = region(), force = false) {
@@ -179,6 +299,7 @@
       }).finally(() => {
         if (requests.get(selected) === request) { requests.delete(selected); requestContexts.delete(selected); }
         render();
+        continuePendingStart(selected);
       });
     requests.set(selected, request);
     requestContexts.set(selected, requestContext);
@@ -188,7 +309,7 @@
   function receiveVersion(versions) {
     const value = versions?.client;
     const captured = versions?.clientContext;
-    const current = Boolean(value && captured && typeof captured.gamePath === 'string' && typeof captured.nsargs === 'string' && captured.region === region() && value.region === captured.region && JSON.stringify([captured.gamePath,captured.nsargs]) === context());
+    const current = Boolean(value && captured && typeof captured.gamePath === 'string' && typeof captured.globalGamePath === 'string' && typeof captured.nsargs === 'string' && captured.region === region() && value.region === captured.region && JSON.stringify([captured.gamePath,captured.globalGamePath,captured.nsargs]) === context());
     // A version check may have started for a different directory/profile.
     // Never infer that identity from current settings or replace a direct
     // status request already checking the current selection.
@@ -231,23 +352,37 @@
     render();
   }
   ipcRenderer.on('northstar-client-progress', (_event, value) => receiveProgress(value));
+  ipcRenderer.on('global-game-root-progress', (_event, value) => {
+    if (!installing?.root || !value || !['copying', 'done'].includes(value.phase)) return;
+    progress = {region: 'global', ...value};
+    render();
+  });
+  ipcRenderer.on('china-game-root-progress', (_event, value) => {
+    if (!installing?.root || installing.region !== 'cn' || !value || !['copying', 'done'].includes(value.phase)) return;
+    progress = {region: 'cn', ...value};
+    render();
+  });
   ipcRenderer.on('changed-settings', (_event, value) => {
-    if (value && Object.prototype.hasOwnProperty.call(value, 'northstarRegion')) { dismissInstallNotices(); render(); void refresh(); }
+    if (value && ['northstarRegion','globalGamepath','gamepath','chinaSourceGamepath','chinaInstallTarget','nsargs'].some(key => Object.prototype.hasOwnProperty.call(value,key))) { pendingStart = null; lastStart = null; dismissInstallNotices(); render(); void refresh(); }
   });
   ipcRenderer.on('launch-status', (_event, value) => {
-    if (value?.state === 'confirmed') { progress = null; render(); void refresh(region(), true); }
+    if (value?.state === 'confirmed') { lastStart = null; progress = null; render(); void refresh(region(), true); }
     else if (value?.state === 'failed') {
+      if (value.code !== 'CLIENT_NOT_INSTALLED') lastStart = null;
       progress = null;
       if (value.code === 'CLIENT_NOT_INSTALLED') {
         const selected = region();
         statuses.set(selected, {...statuses.get(selected), installed: false, active: false, state: 'missing', installState: 'not-installed', error: undefined});
         revisions.set(selected, (revisions.get(selected) || 0) + 1);
-        void refresh(selected, true);
+        const retry = lastStart?.region === selected && lastStart.context === context() ? lastStart : null;
+        lastStart = null;
+        if (retry) void install(selected, false, retry.startGame, retry.context);
+        else void refresh(selected, true);
       }
       render();
     }
   });
-  for (const channel of ['newpath', 'gamepath-status']) ipcRenderer.on(channel, () => {
+  for (const channel of ['newpath', 'globalpath-selected', 'globalpath-status', 'gamepath-status']) ipcRenderer.on(channel, () => {
     const nextContext = context();
     if (nextContext !== observedContext) {
       observedContext = nextContext;
@@ -261,7 +396,7 @@
     if (statusContexts.get(region()) === nextContext && Date.now() - (statusTimes.get(region()) || 0) < 750) return;
     void refresh();
   });
-  window.addEventListener('vyra-region-changed', () => { dismissInstallNotices(); render(); void refresh(); });
+  window.addEventListener('vyra-region-changed', () => { pendingStart = null; lastStart = null; dismissInstallNotices(); render(); void refresh(); });
   window.addEventListener('tfx-settings-saving-changed',renderAction);
   ipcRenderer.on('set-buttons', (_event, enabled) => { if (!installing) externalUpdate = !enabled; renderAction(); });
   ipcRenderer.on('ns-update-event', (_event, value) => {
@@ -270,13 +405,15 @@
     renderAction();
   });
   ipcRenderer.on('is-running', () => renderAction());
+  window.addEventListener('vyra-game-processes-changed', renderAction);
+  ipcRenderer.on('game-process-snapshot', renderAction);
   window.addEventListener('vyra-settings-restored', () => { render(); void refresh(); });
   window.addEventListener('vyra-language-changed', () => {
     dismissInstallNotices();
     render();
     if (!installing && progress && phaseCopy(progress.phase)) window.VyraLaunch?.clientPreparation(preparationText());
   });
-  window.VyraClient = Object.freeze({refresh, receiveVersion, renderAction, activate, reinstallIfNeeded, get busy() { return Boolean(installing); }, get state() { return {region: region(), status: {...statuses.get(region())}, progress: progress ? {...progress} : null, loading: requests.has(region()), installing: installing ? {...installing} : null}; }});
+  window.VyraClient = Object.freeze({refresh, receiveVersion, renderAction, activate, reinstallIfNeeded, installChinaRoot: startGame => installChinaRootAndClient(startGame, false), get busy() { return Boolean(installing); }, get state() { return {region: region(), status: {...statuses.get(region())}, progress: progress ? {...progress} : null, loading: requests.has(region()), installing: installing ? {...installing} : null}; }});
   versionLabel.setAttribute('data-i18n-ignore', '');
   detailLabel.setAttribute('data-i18n-ignore', '');
   playButton.setAttribute('data-i18n-ignore', '');

@@ -3,7 +3,7 @@
   'use strict';
   const states=new Map(),busy=new Set(),plans=new Map(),cancelled=new Set(),applying=new Set(),progressValues=new Map();
   const t=(key,values)=>I18n.t('skinRecovery.'+key,values),api=kind=>kind==='dds'?window.Fold?.DDS:window.VTF;
-  const running=()=>typeof is_running!=='undefined'&&Boolean(is_running);
+  const running=()=>{if(typeof settings==='undefined')return true;const server=settings.modProfileServer,version=server==='official'?'vanilla':'northstar',region=server==='global'?'global':'cn';return window.VyraLaunchAvailability?.canLaunch(window.VyraGameProcesses?.snapshot,settings,version,region)!==true;};
   const size=bytes=>{const n=Number(bytes)||0,gb=n>=1024**3;return new Intl.NumberFormat(I18n.current,{maximumFractionDigits:1}).format(n/(gb?1024**3:1024**2))+(gb?' GB':' MB');};
   function canStart(kind,value=states.get(kind)){
     return Boolean(value?.package&&value.game?.path&&!value.pending?.length&&value.skinRepair?.state!=='error'&&

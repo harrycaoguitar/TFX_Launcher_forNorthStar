@@ -10,7 +10,7 @@
     "official.error.changed":["启动方式、目录或组件已变化，未覆盖外部修改，请重新检查后重试。", "The launch mode, folder or components changed. External changes were preserved. Check again and retry."],
     "official.error.busy":["其他操作正在进行，请等待完成后重试。", "Another operation is in progress. Wait for it to finish, then try again."],
     "official.error.missing":["官服 Mod 组件未安装或需要修复，请在开始游戏页面安装 Vanilla+。", "Official-game Mod components are missing or need repair. Install Vanilla+ on the Play page."],
-    "official.error.runtime":["官服 Mod 需要 Northstar 1.29.0 或更新版本，请修复或更新加载组件。", "Official-game Mods require Northstar 1.29.0 or later. Repair or update the loader components."],
+    "official.error.runtime":["官服 Mod 需要 Northstar 1.21.0 或更新版本，请修复或更新加载组件。", "Official-game Mods require Northstar 1.21.0 or later. Repair or update the loader components."],
     "official.error.duplicate":["检测到多个 Vanilla+ 版本，请在我的模组中移除重复版本后重试。", "Multiple Vanilla+ versions were found. Remove duplicate versions in My Mods, then retry."],
     "official.error.occupied":["Vanilla+ 安装位置已有其他文件，已保留原文件，请检查同名目录后重试。", "Other files occupy the Vanilla+ installation location. They were preserved. Check the conflicting folder, then retry."],
     "official.error.invalid":["Vanilla+ 文件或目录结构无效，已停止安装，请检查 Mod 目录后重试。", "Vanilla+ files or folder structure are invalid. Installation stopped. Check the Mod folder, then retry."],

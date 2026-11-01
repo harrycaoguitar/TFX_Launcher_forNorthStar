@@ -89,7 +89,7 @@ body.fold-shell{border-radius:0;isolation:isolate}
 .fold-titlebar{height:46px;padding-right:104px;border-radius:0;user-select:none}
 .fold-title-caption{font-size:11px;letter-spacing:.05em;color:#b4c7d5}
 #winbtns{inset:6px 9px auto auto;gap:5px}
-#winbtns>div{width:38px;height:34px;border-radius:12px}
+#winbtns>:is(div,button){width:38px;height:34px;border-radius:12px;flex:none;padding:0;border:0;background:transparent;color:inherit;font:inherit;cursor:pointer}
 .fold-titlebar,.fold-title-caption,.fold-title-caption *,
 .fold-page-header,.fold-page-header *,
 .fold-sidebar,.fold-brand,.fold-brand *,
@@ -100,3 +100,4 @@ body.fold-shell{border-radius:0;isolation:isolate}
 .popup,.popup *{-webkit-app-region:no-drag}
 @media(max-width:1160px){.fold-brand{gap:9px;margin-left:5px}.fold-brand strong{font-size:23px}.fold-nav button.active:before{left:4px}.fold-nav button.active{padding-left:14px}}
 @media(max-height:750px){.fold-brand{margin-bottom:28px}.fold-sidebar{padding-top:24px}}
+.fold-sidebar{z-index:41}

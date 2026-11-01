@@ -2,6 +2,7 @@
 
 const GAME_IMAGES = new Set(["titanfall2.exe", "titanfall2-unpacked.exe"]);
 const LAUNCH_IMAGES = new Set([...GAME_IMAGES, "northstarlauncher.exe"]);
+const gameRoots = require("./game-roots");
 
 // Parse Windows arguments directly. Never execute the setting as shell commands.
 function splitArguments(input = "") {
@@ -34,7 +35,14 @@ function splitArguments(input = "") {
 }
 
 function image(process) {return String(process.image || "").toLowerCase();}
-function hasGame(snapshot) {return Boolean(snapshot?.ok && snapshot.processes.some(process => LAUNCH_IMAGES.has(image(process))));}
+function hasGame(snapshot, root) {
+  if (root !== undefined && root !== null) return gameRoots.hasGame(snapshot, root);
+  return Boolean(snapshot?.ok && snapshot.processes.some(process => LAUNCH_IMAGES.has(image(process))));
+}
+function ownedProcesses(snapshot, root) {
+  if (root === undefined || root === null) return snapshot?.processes || [];
+  return gameRoots.processesForRoot(snapshot, root);
+}
 
 // Confirmation is required for every launch, independently of the optional
 // launcher auto-exit preference. A launcher process may hand off to the game.
@@ -46,10 +54,10 @@ class LaunchConfirmation {
   begin(baseline, options = {}) {
     if (this.current) throw Error("已有游戏启动请求正在等待确认");
     if (!baseline?.ok) throw Error("无法读取游戏进程，请稍后重试启动");
-    if (hasGame(baseline)) throw Error("游戏或北极星启动进程已经运行，请等待启动完成或先退出游戏");
+    if (hasGame(baseline, options.root)) throw Error("游戏或北极星启动进程已经运行，请等待启动完成或先退出游戏");
     const requireReady = options.gameVersion === "northstar" || options.requireReady === true;
     const targetImages = requireReady ? LAUNCH_IMAGES : GAME_IMAGES;
-    const session = {spawned: false, ready: false, entered: false, requireReady, officialMods:options.officialMods===true, childPid: null, baselinePids: new Set(baseline.processes.map(process => String(process.pid))), seenPid: null, seenAt: 0, childExit: null, everSeen: false, everCandidate: false, everHandoffCandidate: false, bootstrapHandoff: false, missingAt: null, observationRevision: 0, lastSnapshotOk: true, lastSnapshot: baseline, retryHandoff: options.retryHandoff, retryPending: false, retryAttempted: false, targetImages};
+    const session = {spawned: false, ready: false, entered: false, root: options.root, requireReady, officialMods:options.officialMods===true, childPid: null, baselinePids: new Set(baseline.processes.map(process => String(process.pid))), seenPid: null, seenAt: 0, childExit: null, everSeen: false, everCandidate: false, everHandoffCandidate: false, bootstrapHandoff: false, missingAt: null, observationRevision: 0, lastSnapshotOk: true, lastSnapshot: baseline, retryHandoff: options.retryHandoff, retryPending: false, retryAttempted: false, targetImages};
     session.allowBootstrapHandoff = options.allowBootstrapHandoff === true || !requireReady;
     session.platformDispatch = options.platformDispatch === true;
     session.promise = new Promise(resolve => {session.resolve = resolve;});
@@ -114,7 +122,7 @@ class LaunchConfirmation {
       if (session.retryPending && !session.retryAttempted) {
         // A still-running bootstrap or a new external game is not permission
         // to duplicate it, even if it has not reached confirmation yet.
-        if (hasGame(session.lastSnapshot)) {this.watchExit(session, this.exitGraceMs); return;}
+        if (hasGame(session.lastSnapshot, session.root)) {this.watchExit(session, this.exitGraceMs); return;}
         session.retryAttempted = true; session.retryPending = false;
         // Keep observing during the asynchronous replay readiness guard. The
         // original Steam/EA request may still deliver the real game in this
@@ -156,16 +164,18 @@ class LaunchConfirmation {
     session.observationRevision++;
     session.lastSnapshotOk = Boolean(snapshot?.ok);
     session.lastSnapshot = snapshot;
-    if (!snapshot?.ok) {session.missingAt = null; return;}
+    const scopedProcesses = ownedProcesses(snapshot, session.root);
+    if (!snapshot?.ok || scopedProcesses === null) {session.lastSnapshotOk = false; session.missingAt = null; return;}
+    session.lastSnapshotOk = true;
     // Northstar can stay in NorthstarLauncher.exe while loading Titanfall 2;
     // accept both that owned launcher PID and the handoff game PID.
-    const candidates = snapshot.processes.filter(process => session.targetImages.has(image(process)) && !session.baselinePids.has(String(process.pid)) &&
+    const candidates = scopedProcesses.filter(process => session.targetImages.has(image(process)) && !session.baselinePids.has(String(process.pid)) &&
       (!session.bootstrapHandoff || String(process.pid) !== session.childPid));
     const games = candidates.filter(process =>
       (image(process) !== "northstarlauncher.exe" || (session.ready && String(process.pid) === session.childPid)));
-    const ownedProcesses = candidates.filter(process =>
+    const ownedCandidates = candidates.filter(process =>
       (image(process) !== "northstarlauncher.exe" || String(process.pid) === session.childPid));
-    if (ownedProcesses.length) {session.everSeen = true; session.missingAt = null;}
+    if (ownedCandidates.length) {session.everSeen = true; session.missingAt = null;}
     if (games.length) {session.everCandidate = true; session.retryPending = false;}
     if (games.some(process => String(process.pid) !== session.childPid)) session.everHandoffCandidate = true;
     const confirmed = games.find(process => String(process.pid) === session.seenPid);
@@ -181,7 +191,7 @@ class LaunchConfirmation {
       const hadCandidate = session.seenPid !== null;
       session.seenPid = games.length ? String(games[0].pid) : null;
       session.seenAt = this.now();
-      if (!ownedProcesses.length && (hadCandidate || session.everCandidate)) {
+      if (!ownedCandidates.length && (hadCandidate || session.everCandidate)) {
         if (session.missingAt === null) {session.missingAt = this.now(); this.watchExit(session, this.exitGraceMs);}
         if (this.now() - session.missingAt >= this.exitGraceMs) this.fail(session, this.exitError(session));
       }
@@ -196,10 +206,11 @@ class LaunchExitSession {
     Object.assign(this, {quit, enabled, speedUp, now, schedule, clear, timeoutMs, stableMs});
     this.current = null;
   }
-  begin(baseline) {
+  begin(baseline, options = {}) {
     this.cancel();
-    if (!this.enabled() || !baseline?.ok || hasGame(baseline)) return null;
-    const session = {spawned: false, baselinePids: new Set(baseline.processes.map(process => String(process.pid))), seenPid: null, seenAt: 0, targetImages: GAME_IMAGES};
+    const root = options.root;
+    if (!this.enabled() || !baseline?.ok || hasGame(baseline, root)) return null;
+    const session = {spawned: false, root, baselinePids: new Set(baseline.processes.map(process => String(process.pid))), seenPid: null, seenAt: 0, targetImages: GAME_IMAGES};
     this.current = session;
     session.timer = this.schedule(() => this.fail(session), this.timeoutMs);
     session.timer?.unref?.();
@@ -217,8 +228,9 @@ class LaunchExitSession {
     const session = this.current;
     if (!session?.spawned) return;
     if (!this.enabled()) {this.cancel(); return;}
-    if (!snapshot?.ok) {session.seenPid = null; return;}
-    const games = snapshot.processes.filter(process => GAME_IMAGES.has(image(process)) && !session.baselinePids.has(String(process.pid)));
+    const scopedProcesses = ownedProcesses(snapshot, session.root);
+    if (!snapshot?.ok || scopedProcesses === null) {session.seenPid = null; return;}
+    const games = scopedProcesses.filter(process => GAME_IMAGES.has(image(process)) && !session.baselinePids.has(String(process.pid)));
     const confirmed = games.find(process => String(process.pid) === session.seenPid);
     if (confirmed && this.now() - session.seenAt >= this.stableMs) {
       this.cancel();

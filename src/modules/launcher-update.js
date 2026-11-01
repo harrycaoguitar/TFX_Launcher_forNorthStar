@@ -111,3 +111,5 @@ function register({ipcMain,shell,currentVersion=launcherVersion()}={}){
  return updater;
 }
 module.exports={REPOSITORY,API_URL,parseVersion,compareVersions,isReleaseURL,isAssetURL,selectRelease,requestMetadata,createUpdater,register};
+
+

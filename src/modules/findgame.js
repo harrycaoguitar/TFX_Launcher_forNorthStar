@@ -162,11 +162,30 @@ async function registryPaths() {
 	}
 }
 
-async function findgame(options = {}) {
+function sameGamePath(left, right) {
+	if (typeof left !== "string" || typeof right !== "string" || !left.trim() || !right.trim()) { return false; }
+	return path.win32.resolve(left).replace(/[\\/]+$/, "").toLowerCase() === path.win32.resolve(right).replace(/[\\/]+$/, "").toLowerCase();
+}
+
+function resolveSelectedGamePath(value) {
+	const candidate = normalizeGamePath(value);
+	if (!candidate) { return false; }
+	const direct = validateGamePath(candidate);
+	if (direct) { return direct; }
+	const fromLibrary = gameInLibrary(candidate);
+	if (fromLibrary) { return fromLibrary; }
+	const name = path.basename(candidate).toLowerCase();
+	if (name === "steamapps") { return gameInLibrary(path.dirname(candidate)); }
+	if (name === "common") { return gameInLibrary(path.dirname(path.dirname(candidate))); }
+	return validateGamePath(path.dirname(candidate)) || false;
+}
+
+async function findGames(options = {}) {
 	const registry = options.registry || await registryPaths();
+	const games = [];
 	for (const candidate of uniquePaths(registry.gamePaths || [])) {
 		const valid = validateGamePath(candidate);
-		if (valid) { console.ok("Found game in:", valid); return valid; }
+		if (valid) { games.push(valid); }
 	}
 	const defaultSteamPaths = options.defaultSteamPaths || [
 		process.env["ProgramFiles(x86)"] && path.join(process.env["ProgramFiles(x86)"], "Steam"),
@@ -181,8 +200,22 @@ async function findgame(options = {}) {
 	}
 	for (const library of uniquePaths(libraries)) {
 		const valid = gameInLibrary(library);
-		if (valid) { console.ok("Found game in:", valid); return valid; }
+		if (valid) { games.push(valid); }
 	}
+	return uniquePaths(games);
+}
+
+function selectGlobalGamePath(games, chinaPath) {
+	const china = normalizeGamePath(chinaPath);
+	for (const candidate of uniquePaths(Array.isArray(games) ? games : [])) {
+		if (!china || !sameGamePath(candidate, china)) { return candidate; }
+	}
+	return false;
+}
+
+async function findgame(options = {}) {
+	const games = await findGames(options);
+	if (games.length) { console.ok("Found game in:", games[0]); return games[0]; }
 	return false;
 }
 
@@ -191,4 +224,8 @@ module.exports.normalizeGamePath = normalizeGamePath;
 module.exports.validateGamePath = validateGamePath;
 module.exports.libraryPaths = libraryPaths;
 module.exports.gameInLibrary = gameInLibrary;
+module.exports.findGames = findGames;
+module.exports.sameGamePath = sameGamePath;
+module.exports.resolveSelectedGamePath = resolveSelectedGamePath;
+module.exports.selectGlobalGamePath = selectGlobalGamePath;
 module.exports.registryPaths = registryPaths;

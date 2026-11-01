@@ -5,13 +5,14 @@ const gate=require("./dds-operation-gate");
 const protection=require("./dds-guard");
 const {OfflineSkinPack,productionDirectories}=require("./offline-skin-pack");
 const skinPreview=require("./skin-conflict-preview");
+const gameRoots=require("./game-roots");
 const toolsDir=path.join(__dirname,"../tools/vtf").replace(/app\.asar([\\/])/,"app.asar.unpacked$1");
-let sender,selectedPackageId,operation,quitting=false,quitReady=false;const gamePath=()=>settings().gamepath;
+let sender,selectedPackageId,operation,quitting=false,quitReady=false;const gamePath=()=>gameRoots.gameRootForProfile(settings());
 let selectionRevision=0,selectionError="";
 function clearSelection(){selectedPackageId=undefined;selectionError="";++selectionRevision;}
 function currentPackage(input={}){if(!selectedPackageId||(input.packageId!==undefined&&input.packageId!==selectedPackageId)||(input.selectionRevision!==undefined&&input.selectionRevision!==selectionRevision))throw Error("请先重新导入并校验兼容的 VTF 皮肤，之前的选择已失效");return selectedPackageId;}
 const baseDir=path.join(app.getPath("appData"),"fold-launcher","vtf"),cache=new VtfImportCache(baseDir),ready=cache.initialize();ready.catch(()=>{});
-const engine=new VtfEngine({baseDir,packagesDir:cache.sessionDir,toolsDir,offlinePack:new OfflineSkinPack({directories:productionDirectories()}),isGameRunning:()=>isRunning.game(),progress:data=>{if(sender&&!sender.isDestroyed())sender.send("vtf-progress",data);}});
+const engine=new VtfEngine({baseDir,packagesDir:cache.sessionDir,toolsDir,offlinePack:new OfflineSkinPack({directories:productionDirectories()}),isGameRunning:async()=>gameRoots.hasGame(await isRunning.snapshot(),gamePath()),progress:data=>{if(sender&&!sender.isDestroyed())sender.send("vtf-progress",data);}});
 async function response(event,action,importing=false,sharedImport=false){
   if(quitting)return {ok:false,error:"启动器正在退出"};if(operation||engine.busy||engine.sharedImportBusy&&!sharedImport)return {ok:false,error:"另一个 VTF 操作正在执行"};sender=event.sender;
   // Reserve the operation before any asynchronous file picker or cache work.

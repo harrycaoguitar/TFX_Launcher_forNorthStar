@@ -3,7 +3,9 @@
 #settingsSaveStatus{display:block;margin:0 0 5px;color:var(--muted);font-size:10px;line-height:1.5}
 #settingsSaveStatus.is-error{color:var(--theme-error)}
 #settingsSaveStatus[hidden]{display:none}
+#options .settings-about-authors{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 24px;padding:1px 0 20px}
 #options .settings-about-author{display:flex;align-items:center;gap:14px;padding:1px 0 20px}
+#options .settings-about-authors .settings-about-author{min-width:0;padding:0}
 #options .settings-about-author>div:last-child{min-width:0}
 #options .settings-about-author strong{font-size:16px;font-weight:500;letter-spacing:.02em;color:var(--ink)}
 #options .settings-about-author p{margin:7px 0 0;color:var(--muted);font-size:10px;line-height:1.7}
@@ -22,7 +24,9 @@
 #options .settings-launcher-update h3{margin:0 0 7px;font-size:11px;font-weight:500;color:var(--ink)}
 #options .settings-launcher-update p{margin:0;font-size:10px;line-height:1.7;color:var(--muted)}
 #options .settings-launcher-update p.is-error{color:var(--theme-error)}
+#options .settings-about-authors .settings-about-author p{overflow-wrap:anywhere}
 #options .settings-launcher-update small{display:block;margin-top:5px;font-size:9px;color:var(--muted);line-height:1.6}
 #options .launcher-update-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px}
 #options .launcher-update-actions [hidden]{display:none}
 @media(max-width:1150px){#options .settings-launcher-update{grid-template-columns:1fr}#options .launcher-update-actions{justify-content:flex-start}}
+@media(max-width:680px){#options .settings-about-authors{grid-template-columns:1fr}}

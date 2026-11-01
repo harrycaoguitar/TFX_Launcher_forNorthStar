@@ -5,6 +5,7 @@ const {app,ipcMain,dialog,BrowserWindow,shell} = require("electron");
 const {DdsEngine,errorText} = require("./dds-engine");
 const settings = require("./settings");
 const isRunning = require("./is_running");
+const gameRoots = require("./game-roots");
 const protection = require("./dds-guard");
 const gate = require("./dds-operation-gate");
 const {OfflineSkinPack,productionDirectories}=require("./offline-skin-pack");
@@ -15,12 +16,12 @@ const engine = new DdsEngine({
   // Backups must survive cache cleanup and portable-runtime extraction cleanup.
   baseDir:path.join(app.getPath("appData"),"fold-launcher","dds"),
   offlinePack:new OfflineSkinPack({directories:productionDirectories()}),
-  isGameRunning:()=>isRunning.game(),
+  isGameRunning:async()=>gameRoots.hasGame(await isRunning.snapshot(),gamePath()),
   progress:data=>{if(sender&&!sender.isDestroyed())sender.send("dds-progress",data);}
 });
 let selectedPackageId;
 let selectionRevision=0, inspectingRevision, selectionError="";
-const gamePath=()=>settings().gamepath;
+const gamePath=()=>gameRoots.gameRootForProfile(settings());
 const clearSelection=()=>{selectedPackageId=undefined;inspectingRevision=undefined;selectionError="";return ++selectionRevision;};
 function currentPackage(input={}) {
   if(inspectingRevision!==undefined || !selectedPackageId || (input.packageId!==undefined&&input.packageId!==selectedPackageId) || (input.selectionRevision!==undefined&&input.selectionRevision!==selectionRevision))throw Error("请先重新导入并校验 DDS 皮肤，之前的选择已失效");
@@ -104,7 +105,7 @@ ipcMain.handle("dds-delete-backup",async(event,input={})=>response(event,async()
 ipcMain.handle("dds-protection-status",async()=>{
   const root=gamePath();let ready=false;
   try {ready=typeof root==="string"&&path.isAbsolute(root)&&fs.statSync(path.join(root,"Titanfall2.exe")).isFile();} catch (_) {}
-  return {ok:true,protection:await protection.status(root),game:{ready,path:root||""},running:await isRunning.game(),busy:Boolean(gate.busy||engine.busy||protection.busy)};
+  return {ok:true,protection:await protection.status(root),game:{ready,path:root||""},running:await engine.isGameRunning(),busy:Boolean(gate.busy||engine.busy||protection.busy)};
 });
 ipcMain.handle("dds-protection-set",async(event,input={})=>response(event,async()=>gate.run("dds-settings",async()=>({protection:await protection.setEnabled(gamePath(),input.enabled)}))));
 ipcMain.handle("dds-protection-capture",async event=>response(event,async()=>gate.run("dds-settings",async()=>({protection:await protection.capture(gamePath())}))));

@@ -58,11 +58,14 @@ function equalFiles(actual, expected) {
   return actual.length === expected.length && expected.every(entry => entries.has(entry.path) && entries.get(entry.path).bytes === entry.bytes && entries.get(entry.path).sha256 === entry.sha256);
 }
 async function directories(parent) {
-  if (!await checked(parent, "directory", true)) return [];
+  try {if (!await checked(parent, "directory", true)) return [];}
+  catch (error) {if (error.code === "VANILLA_PLUS_UNSAFE") return []; throw error;}
   const entries = await fsp.readdir(parent, {withFileTypes:true}), output = [];
   if (entries.length > 12000) fail("VANILLA_PLUS_LIMIT", "模组目录项目过多。");
   for (const entry of entries) {
-    if (entry.isSymbolicLink()) fail("VANILLA_PLUS_UNSAFE", "模组目录包含链接，无法安全安装 VanillaPlus。");
+    // Mod managers commonly deploy unrelated Mods through junctions. Do not
+    // follow them during duplicate detection; only inspect real package roots.
+    if (entry.isSymbolicLink()) continue;
     if (entry.isDirectory()) output.push(path.join(parent, entry.name));
   }
   return output;

@@ -11,6 +11,8 @@
     home: ['TFX', '开始游戏'],
     servers: ['SERVER DIRECTORY', '社区服务器'],
     mods: ['MOD MANAGER', '我的模组'],
+    eaEmulator: ['EA EMULATOR', 'EA 模拟器'],
+    icepick: ['ICEPICK MOD', '模组安装'],
     skins: ['SKIN INSTALLER', '皮肤安装']
   };
   let currentView = 'home';
@@ -22,7 +24,7 @@
   let returnFocus = null;
   let popupFocusSequence = 0;
   const dds = { package: null, game: {ready:false}, backups: [], protection:null, original:null, selectionRevision:0, busy: false, locallyCleared:false, error:'', log: [] };
-  let lastPathState = null;
+  const pathStates = new Map();
   let ddsRefreshSequence = 0;
   let ddsRefreshRequest = null;
   const icon = name => {
@@ -40,13 +42,20 @@
 
   function showPath(value, unavailable = false, state = null) {
     const target = typeof value === 'string' ? value.trim() : '';
-    state = state || (lastPathState && lastPathState.path === target ? lastPathState : null);
+    state = state || pathStates.get(normalizePath(target)) || null;
     for (const el of document.querySelectorAll('.fold-game-path')) { el.textContent = target || '尚未选择游戏目录'; el.title = target; }
     for (const el of document.querySelectorAll('.fold-path-state')) {
       el.textContent = state && state.checking ? '检查中' : unavailable ? '目录不可用' : state && state.valid ? (state.source === 'automatic' ? '已自动识别' : '已识别') : target ? '待验证' : '未配置';
       el.classList.toggle('unavailable', unavailable || !target);
     }
     $('ddsGamePath').textContent = target || '尚未选择游戏目录'; $('ddsGamePath').title = target;
+  }
+  const normalizePath = value => String(value || '').trim().replace(/[\\/]+/g,'/').replace(/\/+$/,'').toLowerCase();
+  const selectedGameServer = () => ['cn','global','official'].includes(settings.modProfileServer) ? settings.modProfileServer : settings.northstarRegion === 'global' ? 'global' : 'cn';
+  const selectedGamePath = () => selectedGameServer() === 'global' ? settings.globalGamepath || '' : settings.chinaInstallTarget || settings.gamepath || '';
+  function showSelectedPath(unavailable = false) {
+    const target = selectedGamePath();
+    showPath(target,unavailable,pathStates.get(normalizePath(target)) || null);
   }
   function updateClock() {
     $('foldClock').textContent = new Intl.DateTimeFormat(window.I18n?.current || 'en-US',{hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date());
@@ -58,15 +67,15 @@
       button.setAttribute('aria-current',active?'page':'false');
     }
     const title = titles[view] || titles.home;
-    $('foldPageEyebrow').textContent = title[0]; $('foldPageTitle').textContent = title[1];
+    $('foldPageEyebrow').textContent = title[0]; $('foldPageTitle').textContent = window.I18n?.text(title[1]) || title[1];
     document.body.dataset.foldView = view;
   }
   function setSkinFormat(format) {
-    if (!['dds','vtf','mod'].includes(format)) return;
+    if (!['dds','vtf','mod','icepick'].includes(format)) return;
     // Keep the active installation visible until its transaction is complete.
     if (format !== skinFormat && (dds.busy || window.VTF?.state.busy || window.SkinRecovery?.busy || window.SkinImport?.state.phase==='installing')) return;
     skinFormat = format;
-    for (const kind of ['dds','vtf','mod']) $(kind==='mod'?'skinModWorkspace':kind+'Workspace')?.classList.toggle('hidden',kind!==format);
+    for (const kind of ['dds','vtf','mod','icepick']) $(kind==='mod'?'skinModWorkspace':kind==='icepick'?'skinIcepickWorkspace':kind+'Workspace')?.classList.toggle('hidden',kind!==format);
     for (const button of document.querySelectorAll('[data-skin-format]')) {
       const active=button.dataset.skinFormat===format;
       button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active));
@@ -83,23 +92,24 @@
   }
   function navigate(view) {
     if (view!=='settings' && !Settings.canLeave(() => navigate(view))) return;
-    if(view==='dds'||view==='vtf'){setSkinFormat(view);view='skins';}
+    if(view==='dds'||view==='vtf'||view==='icepick'){setSkinFormat(view);view='skins';}
     if (view === 'store') { Browser.toggle(true); return; }
     if (view === 'settings') { Settings.toggle(true); return; }
     if (!(view in titles)) return;
     popups.set_all(false);
     const requestedMode = selectedMode;
-    const nextPage = view === 'home' ? (requestedMode === 'vanilla' ? $('tfContent').querySelector('.fold-home') : $('nsMain')) : $(view === 'servers' ? 'serverPage' : view === 'mods' ? 'nsMods' : 'skinWorkspace');
+    const nextPage = view === 'home' ? (requestedMode === 'vanilla' ? $('tfContent').querySelector('.fold-home') : $('nsMain')) : $(view === 'servers' ? 'serverPage' : view === 'mods' ? 'nsMods' : view === 'eaEmulator' ? 'eaEmulatorPage' : 'skinWorkspace');
     if (view === currentView && nextPage === (pendingPage || visiblePage)) return;
     currentView = view;
     pendingPage = nextPage;
     setNavigation(view);
     window.VyraMotion.changePage(visiblePage, nextPage, () => {
       legacyPage(view === 'home' && requestedMode === 'vanilla' ? 2 : 1);
-      for (const id of ['nsMain','serverPage','nsMods','nsRelease','skinWorkspace','ddsWorkspace','vtfWorkspace']) $(id).classList.add('hidden');
+      for (const id of ['nsMain','serverPage','nsMods','nsRelease','eaEmulatorPage','skinWorkspace','ddsWorkspace','vtfWorkspace']) $(id).classList.add('hidden');
       if (view === 'home') $('nsMain').classList.remove('hidden');
       if (view === 'servers') $('serverPage').classList.remove('hidden');
       if (view === 'mods') { showNsSection('mods'); $('ddsWorkspace').classList.add('hidden'); }
+      if (view === 'eaEmulator') { $('eaEmulatorPage').classList.remove('hidden'); }
       if (view === 'release') { showNsSection('release'); $('ddsWorkspace').classList.add('hidden'); }
       if (view === 'skins') { $('skinWorkspace').classList.remove('hidden');setSkinFormat(skinFormat); }
       const activeContent = view === 'home' && requestedMode === 'vanilla' ? $('tfContent') : $('nsContent');
@@ -110,7 +120,9 @@
     });
   }
   async function setMode(mode) {
-    if (!['northstar','vanilla'].includes(mode) || changingMode || launchPending || is_running || window.VyraClient?.busy || window.OfficialClient?.busy) return;
+    const region = settings.northstarRegion === 'global' ? 'global' : 'cn';
+    const selection = window.VyraLaunchAvailability.controlAvailability({blocked: changingMode || launchPending || window.VyraClient?.busy || window.OfficialClient?.busy, canLaunch: window.VyraLaunchAvailability.canLaunch(window.VyraGameProcesses?.snapshot, settings, mode, region)});
+    if (!['northstar','vanilla'].includes(mode) || !selection.canSelect) return;
     if (!Settings.canLeave(() => setMode(mode))) return;
     const server = mode === 'vanilla' ? 'official' : settings.northstarRegion === 'global' ? 'global' : 'cn';
     if (settings.modProfileServer !== server) {
@@ -125,7 +137,9 @@
         }
       } finally {
         changingMode = false;
-        for (const button of document.querySelectorAll('[data-mode]')) button.disabled = launchPending || is_running || window.VyraClient?.busy || window.OfficialClient?.busy;
+        for (const button of document.querySelectorAll('[data-mode]')) {
+          button.disabled = !window.VyraLaunchAvailability.controlAvailability({blocked: launchPending || window.VyraClient?.busy || window.OfficialClient?.busy, canLaunch: true}).canSelect;
+        }
       }
     }
     selectedMode = mode;
@@ -184,7 +198,7 @@
     $('ddsSelectPackage').hidden = Boolean(pkg);
     $('ddsSummary').hidden = !pkg;
     $('ddsEmptyState').hidden = Boolean(pkg);
-    $('ddsGamePath').textContent = dds.game.path || settings.gamepath || '尚未选择游戏目录';
+    $('ddsGamePath').textContent = dds.game.path || selectedGamePath() || '尚未选择游戏目录';
     $('ddsGamePath').title = $('ddsGamePath').textContent;
     const resourceUsable = Boolean(dds.game.ready || dds.game.canRepair);
     $('ddsStatus').classList.toggle('fold-dds-error',Boolean(pkg && !resourceUsable));
@@ -238,13 +252,13 @@
   }
   function refreshDds() {
     if (dds.busy) return null;
-    const requestPath = settings.gamepath || '';
+    const requestPath = selectedGamePath();
     if (ddsRefreshRequest?.path === requestPath && ddsRefreshRequest.sequence === ddsRefreshSequence) return ddsRefreshRequest.promise;
     const sequence = ++ddsRefreshSequence;
     const promise = (async () => {
       try {
         const state = await ipcRenderer.invoke('dds-status');
-        if (sequence !== ddsRefreshSequence || requestPath !== (settings.gamepath || '')) return state;
+        if (sequence !== ddsRefreshSequence || requestPath !== selectedGamePath()) return state;
         if (!state.ok) throw new Error(state.error || '无法读取 DDS 安装状态');
         renderDds(state); return state;
       } catch (error) { if (sequence === ddsRefreshSequence) { $('ddsStatus').textContent = error.message; $('ddsStatus').classList.add('fold-dds-error'); addLog(error.message); } return null; }
@@ -338,7 +352,7 @@
       // Install IPC already returns the verified post-write state. Reusing it
       // avoids another resource/conflict/backup scan, while incomplete or stale
       // responses still take the existing guarded refresh path.
-      const fresh = result.game?.path === settings.gamepath && result.package?.id === dds.package?.id && result.selectionRevision === dds.selectionRevision && Array.isArray(result.backups) && Array.isArray(result.pending);
+      const fresh = result.game?.path === selectedGamePath() && result.package?.id === dds.package?.id && result.selectionRevision === dds.selectionRevision && Array.isArray(result.backups) && Array.isArray(result.pending);
       if (fresh) renderDds(result); else await refreshDds();
     }
     return result;
@@ -377,15 +391,27 @@
     if (!document.hidden) { updateClock();clockTimer=setInterval(updateClock,30000); }
   }
   document.addEventListener('visibilitychange',syncClockTimer);
-  showPath(settings.gamepath); syncClockTimer(); setMode(selectedMode);
-  ipcRenderer.on('newpath',(_event,value) => { showPath(value); refreshVisibleDds(); });
-  ipcRenderer.on('changed-settings',(_event,value) => { if (value && 'gamepath' in value) { showPath(value.gamepath); refreshVisibleDds(); } });
-  ipcRenderer.on('gamepath-lost',() => { showPath(settings.gamepath,true); refreshVisibleDds(); });
-  ipcRenderer.on('gamepath-status',(_event,state) => { if (state) { lastPathState=state; showPath(state.path,Boolean(state.path)&&!state.valid&&!state.checking,state); refreshVisibleDds(); } });
+  showSelectedPath(); syncClockTimer(); setMode(selectedMode);
+  ipcRenderer.on('newpath',(_event,value) => { if (normalizePath(value) === normalizePath(selectedGamePath())) showSelectedPath(); refreshVisibleDds(); });
+  ipcRenderer.on('globalpath-selected',(_event,value) => {
+    if (value) pathStates.set(normalizePath(value),{path:value,valid:true,checking:false,source:'selected'});
+    if (normalizePath(value) === normalizePath(selectedGamePath())) showSelectedPath();
+    refreshVisibleDds();
+  });
+  ipcRenderer.on('changed-settings',(_event,value) => {
+    if (value && ['gamepath','globalGamepath','chinaInstallTarget','northstarRegion','modProfileServer'].some(key => key in value)) { showSelectedPath(); refreshVisibleDds(); }
+  });
+  ipcRenderer.on('gamepath-lost',() => { if (normalizePath(settings.gamepath) === normalizePath(selectedGamePath())) showSelectedPath(true); refreshVisibleDds(); });
+  ipcRenderer.on('gamepath-status',(_event,state) => {
+    if (!state) return;
+    pathStates.set(normalizePath(state.path),state);
+    if (normalizePath(state.path) === normalizePath(selectedGamePath())) showSelectedPath(Boolean(state.path)&&!state.valid&&!state.checking);
+    refreshVisibleDds();
+  });
   ipcRenderer.on('gamepath-error',(_event,message) => showToast('游戏目录不可用',true,message));
   ipcRenderer.on('is-running',() => renderDds());
   window.addEventListener('vyra-language-changed',() => {
-    updateClock(); renderDds();
+    setNavigation(currentView); updateClock(); renderDds();
   });
   for (const control of document.querySelectorAll('#winbtns > div')) {
     control.addEventListener('keydown',event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); control.click(); } });

@@ -1,16 +1,16 @@
 /* Copy for the shared DDS/VTF import workflow. */
 Object.assign(window.VyraLocales.messages,{
   "skinImport.title": [
-    "皮肤安装",
-    "Skin installer"
+    "模组安装",
+    "Mod installer"
   ],
   "skinImport.heading": [
-    "导入皮肤",
-    "Import a skin"
+    "导入模组与皮肤",
+    "Import Mods and skins"
   ],
   "skinImport.description": [
-    "拖入皮肤包，自动识别 DDS 或 VTF；确认后即可安装。",
-    "Drop a skin package. TFX detects DDS or VTF automatically, then lets you review and install it."
+    "拖入 Icepick、Northstar Mod、DDS 或 VTF 文件，启动器会自动识别并安装。",
+    "Drop an Icepick or Northstar Mod, DDS or VTF package. TFX detects it and installs it automatically."
   ],
   "skinImport.select": [
     "选择皮肤包",
@@ -21,8 +21,8 @@ Object.assign(window.VyraLocales.messages,{
     "Choose folder"
   ],
   "skinImport.formats": [
-    "DDS · VTF · ZIP · 7Z · RAR",
-    "DDS · VTF · ZIP · 7Z · RAR"
+    "Icepick · Northstar Mod · DDS · VTF · ZIP · 7Z · RAR",
+    "Icepick · Northstar Mod · DDS · VTF · ZIP · 7Z · RAR"
   ],
   "skinImport.picking": [
     "正在选择皮肤…",
@@ -204,20 +204,20 @@ window.VyraLocales.pairs.push(...[
 /* Three-way automatic intake copy. */
 Object.assign(window.VyraLocales.messages,{
   "skinImport.heading": [
-    "导入皮肤/Mod",
-    "Import skins / Mods"
+    "导入模组与皮肤",
+    "Import Mods and skins"
   ],
   "skinImport.description": [
-    "支持 DDS、VTF 与 Northstar Mod，拖入后自动识别并安装。",
-    "Supports DDS, VTF and Northstar Mods. Drop a package to detect and install it automatically."
+    "支持 Icepick、Northstar Mod、DDS 与 VTF；拖入后自动识别并安装。",
+    "Supports Icepick, Northstar Mods, DDS and VTF. Drop a package to detect and install it automatically."
   ],
   "skinImport.select": [
     "选择文件",
     "Choose file"
   ],
   "skinImport.formats": [
-    "ZIP · 7Z · RAR · 文件夹",
-    "ZIP · 7Z · RAR · folders"
+    "Icepick · Northstar Mod · DDS · VTF · ZIP · 7Z · RAR · 文件夹",
+    "Icepick · Northstar Mod · DDS · VTF · ZIP · 7Z · RAR · folders"
   ],
   "skinImport.picking": [
     "正在选择文件…",
@@ -314,7 +314,10 @@ Object.assign(window.VyraLocales.messages,{
   "skinImport.busy": [
     "另一个安装操作正在执行，请等待完成。",
     "Another installation is running. Wait for it to finish."
-  ]
+  ],
+  "skinImport.dropTitle": ["拖入文件，自动识别并安装", "Drop files for automatic detection and installation"],
+  "skinImport.dropDescription": ["Icepick、Northstar Mod、DDS、VTF 均可直接拖入；也可拖入完整文件夹。", "Drop Icepick or Northstar Mods, DDS, VTF, or a complete folder."],
+  "skinImport.dropIdle": ["等待导入", "Ready for files"]
 });
 window.VyraLocales.pairs.push(...[
   [

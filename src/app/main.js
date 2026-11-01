@@ -6,12 +6,20 @@ var modsobj = {
 
 let shouldInstallNorthstar = false;
 let gameDirectoryReady = false;
+let chinaGameDirectoryReady = false;
+let chinaGameDirectorySelected = false;
+let globalGameDirectoryReady = false;
+let globalGameDirectorySelected = false;
 let launchPending = false;
+window.VyraGameProcesses = {snapshot: null};
 
 // Base settings
 var settings = {
 	nsargs: "",
 	gamepath: "",
+	globalGamepath: "",
+	chinaSourceGamepath: "",
+	chinaInstallTarget: "",
 	theme: "aurora",
 	uiLanguage: "zh-CN",
 	modSort: "added",
@@ -44,7 +52,10 @@ if (loadedSettings.data && Object.keys(loadedSettings.data).length !== 0) {
 
 }
 // Install all renderer listeners before requesting startup path validation.
-window.addEventListener("DOMContentLoaded", () => setpath(Boolean(settings.gamepath), false));
+window.addEventListener("DOMContentLoaded", () => {
+	setpath(Boolean(settings.gamepath), false);
+	if (settings.globalGamepath) ipcRenderer.send("setglobalpath", false);
+});
 
 ipcRenderer.on("changed-settings", (e, new_settings) => {
 	// attempt to set `settings` to `new_settings`
@@ -81,11 +92,21 @@ function force_update_ns() {
 }
 
 function open_gamepath() {
-	if (settings.gamepath) {
-		fold.openPath(settings.gamepath);
+	const folder = settings.chinaInstallTarget || settings.gamepath;
+	if (folder) {
+		fold.openPath(folder);
 	} else {
 		alert(lang("gui.settings.miscbuttons.open_gamepath_alert"));
 	}
+}
+
+function open_global_gamepath() {
+	if (settings.globalGamepath) fold.openPath(settings.globalGamepath);
+	else alert(I18n.text("settings.globalPathMissing"));
+}
+
+function setglobalpath() {
+	ipcRenderer.send("setglobalpath", true);
 }
 
 function relaunch() {
@@ -105,7 +126,7 @@ function launch() {
 		window.VyraLaunch?.begin("northstar");
 		ipcRenderer.send("launch-ns");
 	});
-	if (launchPending || is_running) return;
+	if (launchPending) return;
 	if (!gameDirectoryReady) {setpath(); return;}
 	window.VyraLaunch?.begin("northstar");
 	ipcRenderer.send("launch-ns");
@@ -117,7 +138,7 @@ function launchVanilla() {
 		window.VyraLaunch?.begin("vanilla");
 		ipcRenderer.send("launch-vanilla");
 	});
-	if (launchPending || is_running || window.VyraClient?.busy) return;
+	if (launchPending || window.VyraClient?.busy) return;
 	if (!gameDirectoryReady) {setpath(); return;}
 	window.VyraLaunch?.begin("vanilla"); ipcRenderer.send("launch-vanilla");
 }
@@ -148,7 +169,7 @@ function setButtons(state, enable_gamepath_btns) {
 	disablearray(document.querySelectorAll("#browser #browserEntries .text button"));
 
 	if (enable_gamepath_btns) {
-		let gamepath_btns =
+		let gamepath_btns = 
 			document.querySelectorAll('*[onclick="setpath()"]');
 
 		for (let i = 0; i < gamepath_btns.length; i++) {
@@ -305,13 +326,37 @@ function installFromPath(source) { if(window.SkinImport){Fold.navigate("skins");
 ipcRenderer.on("newpath", (event, newpath) => {
 	if (typeof newpath !== "string" || !newpath) return;
 	gameDirectoryReady = true;
+	chinaGameDirectoryReady = true;
+	chinaGameDirectorySelected = true;
 	setButtons(true);
 	settings.gamepath = newpath;
 	ipcRenderer.send("gui-getmods");
 })
+ipcRenderer.on("globalpath-selected", (_event, selected) => {
+	if (typeof selected !== "string" || !selected) return;
+	settings.globalGamepath = selected;
+	globalGameDirectorySelected = true;
+	const pathField = document.getElementById("settingsGlobalGamePath");
+	if (pathField) {pathField.textContent = selected; pathField.title = selected;}
+	window.VyraClient?.renderAction();
+})
+ipcRenderer.on("globalpath-status", (_event, state) => {
+	globalGameDirectoryReady = Boolean(state && state.valid && !state.checking);
+	globalGameDirectorySelected = Boolean(state && (state.selected || state.valid));
+	if (typeof state?.path === "string" && state.path) {
+		settings.globalGamepath = state.path;
+		const pathField = document.getElementById("settingsGlobalGamePath");
+		if (pathField) {pathField.textContent = state.path; pathField.title = state.path;}
+	}
+	window.VyraClient?.renderAction();
+})
 ipcRenderer.on("gamepath-status", (_event, state) => {
 	gameDirectoryReady = Boolean(state && state.valid && !state.checking);
+	chinaGameDirectoryReady = Boolean(state && state.valid && !state.checking);
+	chinaGameDirectorySelected = Boolean(state && (state.selected || state.valid));
 	for (const button of document.querySelectorAll(".playBtn")) button.disabled = !gameDirectoryReady || is_running;
+	window.VyraClient?.renderAction();
+	window.OfficialClient?.renderAction();
 });
 
 // Continuation of log()
@@ -327,32 +372,31 @@ ipcRenderer.on("confirm", (event, data) => {
 })
 
 let is_running = false;
+ipcRenderer.on("game-process-snapshot", (_event, snapshot) => {
+	window.VyraGameProcesses.snapshot = snapshot;
+	window.dispatchEvent(new CustomEvent("vyra-game-processes-changed"));
+});
 ipcRenderer.on("is-running", (event, running) => {
-	let set_playbtns = (text) => {
-		let playbtns = document.querySelectorAll(".playBtn");
-		for (let i = 0; i < playbtns.length; i++) {
-			playbtns[i].innerHTML = text;
-		}
-	}
-
 	if (running) {
 		setButtons(false);
-		set_playbtns(lang("general.running"));
 
 		if (is_running == running) {return}
 		is_running = running;
 
-		// show force quit button in Titanfall tab
-		tfquit.style.display = "inline-block";
-
-		update.setAttribute("onclick", "kill_game()");
-		update.innerHTML = "(" + lang("ns.menu.force_quit") + ")";
+		if (window.VyraLaunchAvailability?.rootOccupied(window.VyraGameProcesses.snapshot, settings, "vanilla")) {
+			tfquit.style.display = "inline-block";
+			update.setAttribute("onclick", "kill_game()");
+			update.innerHTML = "(" + lang("ns.menu.force_quit") + ")";
+		} else {
+			tfquit.style.display = "none";
+			update.setAttribute("onclick", "updateNorthstar()");
+			update.innerHTML = "(" + lang("gui.launch") + ")";
+		}
 		return;
 	}
 
 	if (is_running != running) {
 		setButtons(true);
-		set_playbtns(lang("gui.launch"));
 
 		is_running = running;
 
@@ -365,7 +409,8 @@ ipcRenderer.on("is-running", (event, running) => {
 })
 
 function kill_game() {
-	ipcRenderer.send("kill-game");
+	const root = window.Fold?.mode === "vanilla" ? settings.gamepath : window.VyraLaunchAvailability?.targetRoot(settings, "northstar");
+	ipcRenderer.send("kill-game", root);
 }
 
 function kill_origin() {
@@ -469,3 +514,5 @@ document.body.addEventListener("click", event => {
 		fold.openExternal(event.target.href);
 	}
 });
+
+

@@ -1,0 +1,63 @@
+--- a/package.json
++++ b/package.json
+@@ -1,26 +1,33 @@
+-{
+-  "name": "tfx-launcher",
+-  "productName": "TFX Launcher",
+-  "version": "1.0.7",
+-  "description": "泰坦陨落 2 · 北极星、DDS 与 VTF 皮肤启动器",
+-  "main": "src/index.js",
+-  "author": "HarryCao",
+-  "license": "GPL-3.0-or-later",
+-  "dependencies": {
+-    "follow-redirects": "1.16.0",
+-    "fs-extra": "10.1.0",
+-    "fuse.js": "6.5.3",
+-    "jsonrepair": "2.2.1"
+-  },
+-  "repository": {
+-    "type": "git",
+-    "url": "https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar.git"
+-  },
+-  "homepage": "https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar",
+-  "bugs": {
+-    "url": "https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/issues"
+-  },
+-  "engines": {
+-    "node": ">=22.12.0"
+-  }
+-}
+\ No newline at end of file
++{
++  "name": "tfx-launcher",
++  "productName": "TFX Launcher",
++  "version": "1.1.0",
++  "description": "泰坦陨落 2 · 北极星、DDS 与 VTF 皮肤启动器",
++  "main": "src/index.js",
++  "author": "HarryCao",
++  "license": "GPL-3.0-or-later",
++  "dependencies": {
++    "follow-redirects": "1.16.0",
++    "fs-extra": "10.1.0",
++    "fuse.js": "6.5.3",
++    "jsonrepair": "2.2.1"
++  },
++  "repository": {
++    "type": "git",
++    "url": "https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar.git"
++  },
++  "homepage": "https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar",
++  "bugs": {
++    "url": "https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/issues"
++  },
++  "engines": {
++    "node": ">=22.12.0"
++  },
++  "scripts": {
++    "start": "electron .",
++    "build:win": "powershell -NoProfile -ExecutionPolicy Bypass -File build/Build.ps1"
++  },
++  "devDependencies": {
++    "electron": "43.1.1"
++  }
++}
