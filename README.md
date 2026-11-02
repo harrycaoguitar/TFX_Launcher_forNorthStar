@@ -4,7 +4,7 @@
 
 ### Northstar CN & Global. EA accounts. Mods and skins. One launcher.
 
-TFX is a Windows launcher for **TITANFALL 2**, combining **NorthstarCN**, **Northstar Global**, vanilla game launching, an integrated **EA Emulator**, and a unified **Icepick / Northstar Mod / DDS / VTF** installation workspace.
+TFX is a Windows launcher for **TITANFALL 2**, combining **Northstar**, **Northstar Global**, vanilla game launching, an integrated **EA Emulator**, and a unified **Icepick / Northstar Mod / DDS / VTF** installation workspace.
 
 [**Download 1.1.0**](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/releases/tag/1.1.0) · [**Latest release**](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/releases/latest) · [Report an issue](https://github.com/harrycaoguitar/TFX_Launcher_forNorthStar/issues) · [Build from source](BUILD.md)
 
