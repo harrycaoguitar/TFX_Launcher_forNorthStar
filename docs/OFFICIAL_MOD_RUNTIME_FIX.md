@@ -22,10 +22,10 @@ CN replacement requires a main-process confirmation showing the target folder. C
 
 Replacement checks use temporary game folders, valid fixture manifests and PE files. No real game session or replacement of a player's actual game root was performed. Unrelated historical suite failures remain; this report does not claim the entire suite passes.
 
-This correction leaves the published 1.1.1 tag and release assets unchanged. / 本次源码修正不移动已发布的 1.1.1 标签或覆盖其发布附件。
+This 1.1.1 release includes the framework handling described above. / 本次 1.1.1 发布包含上述框架处理改进。
 
-## Corrected local installer / 本地修订安装包
+## Windows x64 installer / Windows x64 安装包
 
 - Five-language NSIS Setup completed successfully. Silent install to a fresh selected Chinese path returned exit 0; all 121 installed application files match the build, and the uninstaller exists.
-- Corrected ASAR SHA-256: `b1541d2fd81e5543cb1f23ec32b3fe5235c88910bc2819b183d09c9107d9d9ca`.
-- Corrected Setup SHA-256: `4d3142b7f2acfdf6e449339bac49978a70add30c0c7ae007dc81d5fa2667b21d`; 288817113 bytes.
+- ASAR SHA-256: `b1541d2fd81e5543cb1f23ec32b3fe5235c88910bc2819b183d09c9107d9d9ca`.
+- Setup SHA-256: `4d3142b7f2acfdf6e449339bac49978a70add30c0c7ae007dc81d5fa2667b21d`; 288817113 bytes.

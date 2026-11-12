@@ -9,6 +9,7 @@
 
 ## Regression checks
 
+- Original-game Mod framework checks passed 67 targeted source tests, 14 package-backed behavior tests and 32 renderer checks covering five-language actions and canceled replacement. The launcher requires Global Northstar in the original game folder, confirms CN replacement, preserves personal Mods and supports a fresh profile directory. See `OFFICIAL_MOD_RUNTIME_FIX.md` for the tested scope.
 - The original supplied application directory's 126 recorded file hashes remained unchanged.
 - Installation tests passed for nested and non-empty directories, same and cross-volume targets, and targets where filesystem metadata could not be queried. The CN and Global clients remain prevented from sharing the same physical destination.
 - Space-plan tests passed for excluding captured screenshots and movie frames while retaining nested game resources. A real Steam source estimate with a 100 GiB budget stopped at the pre-copy gate; no full game copy was performed.
