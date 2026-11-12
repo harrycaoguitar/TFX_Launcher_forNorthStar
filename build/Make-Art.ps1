@@ -1,6 +1,7 @@
 ﻿$ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+$version = (Get-Content -LiteralPath (Join-Path $root 'package.json') -Encoding UTF8 -Raw | ConvertFrom-Json).version
 function New-WizardArt([int]$width,[int]$height,[string]$destination,[bool]$sidebar) {
   $bmp = [Drawing.Bitmap]::new($width,$height,[Drawing.Imaging.PixelFormat]::Format24bppRgb)
   $g = [Drawing.Graphics]::FromImage($bmp)
@@ -29,14 +30,14 @@ function New-WizardArt([int]$width,[int]$height,[string]$destination,[bool]$side
     $g.DrawString('TFX',$big,$white,16,172)
     $g.DrawString('LAUNCHER',$medium,$white,19,213)
     $g.DrawString('YOUR NEXT DROP.',$small,$muted,20,241)
-    $g.DrawString('VERSION 1.1.0',$small,$gold,20,285)
+    $g.DrawString("VERSION $version",$small,$gold,20,285)
     $big.Dispose(); $small.Dispose(); $medium.Dispose()
   } else {
     $g.FillRectangle($gold,12,14,3,28)
     $font = [Drawing.Font]::new('Segoe UI',22,[Drawing.FontStyle]::Bold,[Drawing.GraphicsUnit]::Pixel)
     $small = [Drawing.Font]::new('Segoe UI',8,[Drawing.FontStyle]::Regular,[Drawing.GraphicsUnit]::Pixel)
     $g.DrawString('TFX',$font,$white,24,5)
-    $g.DrawString('LAUNCHER  /  1.1.0',$small,$muted,26,33)
+    $g.DrawString("LAUNCHER  /  $version",$small,$muted,26,33)
     $font.Dispose(); $small.Dispose()
   }
   $gold.Dispose(); $white.Dispose(); $muted.Dispose(); $g.Dispose()

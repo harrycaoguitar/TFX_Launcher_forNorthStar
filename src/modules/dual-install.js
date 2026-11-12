@@ -17,15 +17,10 @@ const GAME_FILES = Object.freeze([
 const error = (code, message) => Object.assign(new Error(message), {code});
 const lower = value => path.resolve(value).replace(/[\\/]+$/, "").toLowerCase();
 
-function isWithin(parent, child) {
-  const relative = path.relative(parent, child);
-  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
-}
-
 function ensureDisjoint(sourceRoot, targetRoot) {
-  const source = lower(sourceRoot), target = lower(targetRoot);
+  const canonical = value => lower(fs.existsSync(value) ? fs.realpathSync.native(value) : value);
+  const source = canonical(sourceRoot), target = canonical(targetRoot);
   if (source === target) throw error("GLOBAL_TARGET_SAME_AS_SOURCE", "全球服目录不能与国服目录相同。");
-  if (isWithin(source, target) || isWithin(target, source)) throw error("GLOBAL_TARGET_OVERLAPS_SOURCE", "全球服目录必须与国服目录完全分开，且不能互相包含。");
 }
 
 function resolveExistingRoot(value, code) {
@@ -40,7 +35,7 @@ function resolveExistingRoot(value, code) {
 }
 
 function volumeRoot(value) {
-  const root = path.parse(path.resolve(value)).root.replace(/[\\/]+$/, "");
+  const root = path.parse(path.resolve(value)).root;
   if (!root) throw error("GLOBAL_VOLUME_UNKNOWN", "无法识别所选路径所在的卷。");
   return root;
 }
@@ -48,14 +43,20 @@ function volumeRoot(value) {
 function getVolumeFileSystem(value) {
   if (process.platform !== "win32") throw error("GLOBAL_VOLUME_UNKNOWN", "全球服安装只能写入 Windows NTFS 卷。");
   const systemRoot = process.env.SystemRoot || "C:\\Windows";
+  // DriveInfo reads volume metadata without fsutil's administrator requirement.
+  // Encode the script so spaces, Unicode and quotes never become command syntax.
+  const script = "$ErrorActionPreference = 'Stop'; " +
+    "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; " +
+    "([System.IO.DriveInfo]::new('" + volumeRoot(value).replace(/'/g, "''") + "')).DriveFormat";
   let output;
   try {
-    output = execFileSync(path.join(systemRoot, "System32", "fsutil.exe"), ["fsinfo", "volumeinfo", volumeRoot(value)], {
+    output = execFileSync(path.join(systemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe"), [
+      "-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(script, "utf16le").toString("base64")
+    ], {
       encoding: "utf8", windowsHide: true, stdio: ["ignore", "pipe", "pipe"], timeout: 10000
     });
   } catch (_) {throw error("GLOBAL_VOLUME_UNKNOWN", "无法检查所选路径的文件系统，请选择可访问的 NTFS 磁盘。");}
-  const match = String(output).match(/\bNTFS\b/i);
-  return match ? match[0].toUpperCase() : "UNKNOWN";
+  return String(output).trim().toUpperCase();
 }
 
 function getAvailableBytes(value) {
@@ -81,6 +82,12 @@ async function isEmptyDirectory(folder) {
 }
 
 async function scanDirectory(source, relative, entries, totals) {
+  // Engine movie frames and screenshots are user output, not game resources.
+  // Limit the exclusion to r2's capture locations; packaged textures still copy.
+  const parts = relative.split(path.sep);
+  if (parts[0].toLowerCase() === "r2" &&
+      (parts[1]?.toLowerCase() === "screenshots" ||
+       (parts.length === 2 && path.extname(parts[1]).toLowerCase() === ".tga"))) return;
   let stat;
   try {stat = await fsp.lstat(source);}
   catch (cause) {throw cause;}
@@ -198,11 +205,12 @@ async function hasCompleteGameRoot(root) {
 async function targetLocation(targetRoot) {
   const absolute = path.resolve(targetRoot), stat = await lstatOrNull(absolute);
   if (stat) {
-    if (!stat.isDirectory() || stat.isSymbolicLink()) throw error("GLOBAL_TARGET_INVALID", "全球服安装位置必须是实际文件夹。");
-    return {root: fs.realpathSync.native(absolute), exists: true};
+    const root = fs.realpathSync.native(absolute);
+    if (!fs.statSync(root).isDirectory()) throw error("GLOBAL_TARGET_INVALID", "安装位置必须是文件夹。");
+    return {root, exists: true};
   }
   const parent = path.dirname(absolute), parentStat = await lstatOrNull(parent);
-  if (!parentStat?.isDirectory() || parentStat.isSymbolicLink()) throw error("GLOBAL_TARGET_INVALID", "所选全球服安装位置的上级文件夹无效。");
+  if (!parentStat || !fs.statSync(parent).isDirectory()) throw error("GLOBAL_TARGET_INVALID", "所选安装位置的上级文件夹无效。");
   return {root: path.join(fs.realpathSync.native(parent), path.basename(absolute)), exists: false};
 }
 
@@ -213,16 +221,11 @@ async function inspectInstallTarget({sourceRoot, targetRoot, getFileSystem = get
   const source = resolveExistingRoot(sourceRoot, "GLOBAL_SOURCE_INVALID");
   const target = await targetLocation(targetRoot);
   ensureDisjoint(source, target.root);
-  if (await getFileSystem(source) !== "NTFS" || await getFileSystem(path.dirname(target.root)) !== "NTFS") {
-    throw error("GLOBAL_VOLUME_NOT_NTFS", "国服和全球服安装目录都必须位于 NTFS 磁盘上。");
-  }
   if (target.exists && !(await isEmptyDirectory(target.root))) {
     const marker = await readOwnedMarker(target.root);
     const complete = await hasCompleteGameRoot(target.root);
     if (marker && lower(marker.sourceRoot) === lower(source) && complete) return {root: target.root, ready: true, installable: false, owned: true};
     if (complete) return {root: target.root, ready: true, installable: false, owned: false};
-    if (await lstatOrNull(path.join(target.root, "Titanfall2.exe"))) throw error("GLOBAL_TARGET_INCOMPLETE", "所选目录包含 Titanfall2.exe，但缺少完整游戏资源文件夹。请重新选择空目录或完整游戏目录。");
-    throw error("GLOBAL_TARGET_NOT_EMPTY", "所选全球服目录不为空且不是已验证的全球服安装目录。");
   }
   return {root: target.root, ready: false, installable: true, owned: false};
 }
@@ -236,39 +239,63 @@ async function installRoot({sourceRoot, targetRoot, markerName, markerKind, getF
   if (inspected.ready) return {root: inspected.root, reused: true, owned: inspected.owned};
   const source = resolveExistingRoot(sourceRoot, "GLOBAL_SOURCE_INVALID"), target = inspected.root;
   const plan = await createCopyPlan(source);
-  const available = await readSpace(path.dirname(target));
+  const available = await readSpace(inspected.installable && fs.existsSync(target) ? target : path.dirname(target));
   if (!Number.isFinite(available) || available < plan.totalBytes) {
-    throw error("GLOBAL_DISK_SPACE_LOW", `目标磁盘空间不足：需要 ${plan.totalBytes} 字节，可用 ${Number.isFinite(available) ? available : 0} 字节。`);
+    const free = Number.isFinite(available) ? available : 0;
+    throw error("GLOBAL_DISK_SPACE_LOW", `目标磁盘空间不足（${target}）：需要 ${(plan.totalBytes / 1024 ** 3).toFixed(2)} GiB（${plan.totalBytes} 字节），可用 ${(free / 1024 ** 3).toFixed(2)} GiB（${free} 字节）。`);
   }
-  const parent = path.dirname(target), stage = path.join(parent, `.${path.basename(target)}.tfx-stage-${require("crypto").randomUUID()}`);
-  let removedEmptyTarget = false;
+  const createdTarget = !fs.existsSync(target);
+  await fsp.mkdir(target, {recursive: true});
+  const stage = path.join(target, `.tfx-stage-${require("crypto").randomUUID()}`);
+  const payload = path.join(stage, "payload"), backup = path.join(stage, "backup");
+  const changes = [];
+  let rollbackFailed = false;
   try {
-    await fsp.mkdir(stage, {recursive: false});
-    await copy(source, stage, plan, value => onProgress(value));
-    await verifyCopy(stage, plan);
-    const executable = await fsp.lstat(path.join(stage, "Titanfall2.exe"));
+    await fsp.mkdir(payload, {recursive: true});
+    await fsp.mkdir(backup);
+    await copy(source, payload, plan, value => onProgress(value));
+    await verifyCopy(payload, plan);
+    const executable = await fsp.lstat(path.join(payload, "Titanfall2.exe"));
     if (!executable.isFile() || executable.isSymbolicLink()) throw error("GLOBAL_COPY_VERIFY_FAILED", "全球服目录缺少 Titanfall2.exe。");
     const marker = {schemaVersion: 1, kind: markerKind, sourceRoot: source, totalFiles: plan.totalFiles, totalBytes: plan.totalBytes};
-    await fsp.writeFile(path.join(stage, markerName), JSON.stringify(marker), {flag: "wx"});
-    const targetStat = await lstatOrNull(target);
-    if (targetStat) {
-      if (!targetStat.isDirectory() || targetStat.isSymbolicLink() || !(await isEmptyDirectory(target))) {
-        throw error("GLOBAL_TARGET_CHANGED", "全球服目标目录在安装期间发生变化，已停止发布。");
+    await fsp.writeFile(path.join(payload, markerName), JSON.stringify(marker), {flag: "wx"});
+    for (const entry of [...plan.entries, {relative: markerName, kind: "file"}]) {
+      const destination = path.join(target, entry.relative);
+      const existing = await lstatOrNull(destination);
+      if (entry.kind === "directory") {
+        if (existing && (!existing.isDirectory() || existing.isSymbolicLink())) {
+          throw error("GLOBAL_TARGET_CONFLICT", `安装所需文件夹与已有文件或链接冲突：${entry.relative}`);
+        }
+        if (!existing) {await fsp.mkdir(destination); changes.push({destination, directory: true});}
+      } else {
+        if (existing && (!existing.isFile() || existing.isSymbolicLink())) {
+          throw error("GLOBAL_TARGET_CONFLICT", `安装所需文件与已有文件夹或链接冲突：${entry.relative}`);
+        }
+        const saved = existing ? path.join(backup, String(changes.length)) : null;
+        if (saved) await fsp.rename(destination, saved);
+        changes.push({destination, saved});
+        await fsp.rename(path.join(payload, entry.relative), destination);
       }
-      await fsp.rmdir(target);
-      removedEmptyTarget = true;
     }
-    await fsp.rename(stage, target);
-    removedEmptyTarget = false;
     try {onProgress({phase: "done", copiedBytes: plan.totalBytes, totalBytes: plan.totalBytes, percent: 100});} catch (_) {}
     return {root: target, reused: false, totalBytes: plan.totalBytes, totalFiles: plan.totalFiles};
   } catch (cause) {
-    if (removedEmptyTarget && !(await lstatOrNull(target))) {
-      try {await fsp.mkdir(target);} catch (_) {}
+    try {
+      for (const change of changes.reverse()) {
+        if (change.directory) await fsp.rmdir(change.destination);
+        else {
+          await fsp.rm(change.destination, {force: true});
+          if (change.saved) await fsp.rename(change.saved, change.destination);
+        }
+      }
+    } catch (restoreError) {
+      rollbackFailed = true;
+      throw new AggregateError([cause, restoreError], `安装失败，恢复文件时出错。备份保留在：${backup}`);
     }
     throw cause;
   } finally {
-    await fsp.rm(stage, {recursive: true, force: true}).catch(() => {});
+    if (!rollbackFailed) await fsp.rm(stage, {recursive: true, force: true});
+    if (createdTarget && !(await fsp.readdir(target)).length) await fsp.rmdir(target);
   }
 }
 
@@ -298,6 +325,7 @@ function register({ipcMain}, {
       const result = await gate.run("global-game-root-install", async () => {
         const current = getSettings();
         if (current.gamepath !== conf.gamepath || current.globalGamepath !== conf.globalGamepath) throw error("GLOBAL_SELECTION_CHANGED", "游戏目录已改变，请重新选择后再安装。");
+        if (current.chinaInstallTarget) ensureDisjoint(current.chinaInstallTarget, conf.globalGamepath);
         const snapshot = await require("./is_running").snapshot();
         if (!snapshot?.ok) throw error("GLOBAL_PROCESS_CHECK_FAILED", "无法确认游戏进程状态，请重试全球服安装。");
         if (require("./game-roots").hasGame(snapshot, sourceRoot)) throw error("GLOBAL_SOURCE_RUNNING", "安装全球服前请先退出国服游戏和北极星。");

@@ -63,6 +63,8 @@
         document.getElementById('skinModCount').textContent=entry.format==='mod'?String(entry.package?.modCount||0):'—';
         document.getElementById('skinModFiles').textContent=entry.format==='mod'?String(entry.package?.count||0):'—';
       }
+      document.getElementById('skinIcepickStatus').textContent=entry.format==='icepick'?status:t('icepickBlank');
+      document.getElementById('skinIcepickName').textContent=entry.format==='icepick'?entry.name:'';
       for(const node of document.querySelectorAll('[data-unified-install-hint]'))node.textContent=t('automaticHint');
     }
     function installationResult(kind,result){
@@ -101,6 +103,7 @@
         if(!['dds','vtf','mod','icepick'].includes(result.format)||!result.state?.package?.id)throw Error(t('failed'));
         Object.assign(entry,{name:basename(result.sourceName||result.state.package.name||entry.name),format:result.format,package:result.state.package,percent:0});
         window.Fold?.setSkinFormat(result.format);
+        window.Fold?.navigate('skins');
         if(result.format==='icepick'&&result.installed){entry.phase='complete';entry.percent=100;entry.estimated=false;new Toast({scheme:'success',title:I18n.t('icepick.autoInstalled'),description:I18n.current.startsWith('zh')?'已单独安装到 Icepick 管理目录。':'Installed separately in the Icepick manager.',timeout:5000});window.dispatchEvent(new CustomEvent('tfx-install-complete',{detail:{format:'icepick'}}));window.Icepick?.refresh();}
         else if(result.format!=='mod'){
           controller(result.format)?.adoptImport?.(result.state);

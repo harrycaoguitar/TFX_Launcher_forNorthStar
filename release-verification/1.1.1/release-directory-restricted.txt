@@ -1,0 +1,17 @@
+PASS cn volume-root child selected exact empty folder; installable=true; target contents=[]
+PASS cn nested Unicode/space selected exact empty folder; installable=true; target contents=[]
+PASS cn occupied ordinary parent selected exact empty folder; installable=true; target contents=[]
+PASS cn parent contains Titanfall2.exe selected exact empty folder; installable=true; target contents=[]
+PASS cn nonempty target accepted; nonempty directory accepted without changing contents
+PASS cn existing complete game; valid=true; selected exact existing game folder
+PASS cn partial game accepted for completion; installable=true; original file preserved
+PASS cn same CN and global directory rejected
+PASS global volume-root child selected exact empty folder; installable=true; target contents=[]
+PASS global nested Unicode/space selected exact empty folder; installable=true; target contents=[]
+PASS global occupied ordinary parent selected exact empty folder; installable=true; target contents=[]
+PASS global parent contains Titanfall2.exe selected exact empty folder; installable=true; target contents=[]
+PASS global nonempty target accepted; nonempty directory accepted without changing contents
+PASS global existing complete game; valid=true; selected exact existing game folder
+PASS global partial game accepted for completion; installable=true; original file preserved
+PASS global same CN and global directory rejected
+RESULT failures=0

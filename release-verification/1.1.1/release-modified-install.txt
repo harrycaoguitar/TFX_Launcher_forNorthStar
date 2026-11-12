@@ -1,0 +1,20 @@
+ARCHIVE_SHA256 6f234dda705731f11cf46c439078bd32e930bcf7b4e4660009bda36e24f87d9e
+ADMINISTRATOR True exit=0
+FSUTIL exit=0 stdout="���� : \r\n�����к� : 0xa035ede0\r\n����������ֵ : 255\r\n�ļ�ϵͳ�� : NTFS\r\nΪ��д\r\nδ����Ԥ��\r\n֧�����ִ�Сд���ļ���\r\n�����ļ����Ĵ�Сд\r\n֧���ļ����е� Unicode\r\n��������ǿ ACL\r\n֧�ֻ����ļ���ѹ��\r\n֧��ϡ���ļ�\r\n֧���ط�����\r\n���ؾ���رս����Ϣ\r\n֧�� POSIX ��ʽ�Ͽ����Ӻ�������\r\n֧�ֶ����ʶ��\r\n֧�ּ����ļ�ϵͳ\r\n֧�ִ������Ƶ�������\r\n֧��Ӳ����\r\n֧����չ����\r\n֧�ְ��ļ� ID ��\r\n" stderr=""
+PASS actual NTFS volume query
+PASS same-volume nested empty directory
+PASS cross-volume nested empty directory
+PASS nonempty directory is installable
+PASS non-NTFS directory is installable
+PASS nonempty directory preserves unrelated files after install
+PASS China real copy, verification and publication
+PASS Global real copy, verification and publication
+PASS volume detection failure does not block installation
+PASS same physical directory remains rejected
+PASS junction alias of same directory remains rejected
+PASS nested target inside source installs without changing source files
+PASS target may be source ancestor
+PASS drive root can be selected as a target
+PASS failed merge restores replaced files and unrelated contents
+PASS NTFS detection with fsutil unavailable
+RESULT failures=0

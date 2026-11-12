@@ -12,7 +12,6 @@
     servers: ['SERVER DIRECTORY', '社区服务器'],
     mods: ['MOD MANAGER', '我的模组'],
     eaEmulator: ['EA EMULATOR', 'EA 模拟器'],
-    icepick: ['ICEPICK MOD', '模组安装'],
     skins: ['SKIN INSTALLER', '皮肤安装']
   };
   let currentView = 'home';
@@ -92,7 +91,7 @@
   }
   function navigate(view) {
     if (view!=='settings' && !Settings.canLeave(() => navigate(view))) return;
-    if(view==='dds'||view==='vtf'||view==='icepick'){setSkinFormat(view);view='skins';}
+    if(view==='dds'||view==='vtf'){setSkinFormat(view);view='skins';}
     if (view === 'store') { Browser.toggle(true); return; }
     if (view === 'settings') { Settings.toggle(true); return; }
     if (!(view in titles)) return;
@@ -105,13 +104,12 @@
     setNavigation(view);
     window.VyraMotion.changePage(visiblePage, nextPage, () => {
       legacyPage(view === 'home' && requestedMode === 'vanilla' ? 2 : 1);
-      for (const id of ['nsMain','serverPage','nsMods','nsRelease','eaEmulatorPage','skinWorkspace','ddsWorkspace','vtfWorkspace']) $(id).classList.add('hidden');
+      for (const id of ['nsMain','serverPage','nsMods','nsRelease','r1deltaPage','r1deltaModsPage','r1deltaServersPage','r1deltaInstallPage','eaEmulatorPage','skinWorkspace','ddsWorkspace','vtfWorkspace']) $(id).classList.add('hidden');
       if (view === 'home') $('nsMain').classList.remove('hidden');
       if (view === 'servers') $('serverPage').classList.remove('hidden');
       if (view === 'mods') { showNsSection('mods'); $('ddsWorkspace').classList.add('hidden'); }
-      if (view === 'eaEmulator') { $('eaEmulatorPage').classList.remove('hidden'); }
-      if (view === 'release') { showNsSection('release'); $('ddsWorkspace').classList.add('hidden'); }
-      if (view === 'skins') { $('skinWorkspace').classList.remove('hidden');setSkinFormat(skinFormat); }
+      if (view === 'eaEmulator') $('eaEmulatorPage').classList.remove('hidden');
+      if (view === 'skins') { $('skinWorkspace').classList.remove('hidden'); setSkinFormat(skinFormat); }
       const activeContent = view === 'home' && requestedMode === 'vanilla' ? $('tfContent') : $('nsContent');
       activeContent.scrollTop = 0;
       visiblePage = nextPage;

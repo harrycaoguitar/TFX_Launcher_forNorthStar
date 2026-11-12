@@ -1,0 +1,110 @@
+{
+  "url": "file:///D:/TFX-111-Install-QA/%E8%87%AA%E9%80%89%E7%9B%AE%E5%BD%95/resources/app.asar/src/app/index.html",
+  "checks": [
+    {
+      "name": "visible version is 1.1.1",
+      "pass": true
+    },
+    {
+      "name": "platform entry is absent",
+      "pass": true
+    },
+    {
+      "name": "home has no hidden game content exposed",
+      "pass": true
+    },
+    {
+      "name": "mods has no hidden game content exposed",
+      "pass": true
+    },
+    {
+      "name": "servers has no hidden game content exposed",
+      "pass": true
+    },
+    {
+      "name": "skins has no hidden game content exposed",
+      "pass": true
+    },
+    {
+      "name": "direct hidden route is unavailable",
+      "pass": true
+    },
+    {
+      "name": "zh-CN language applies",
+      "pass": true
+    },
+    {
+      "name": "zh-TW language applies",
+      "pass": true
+    },
+    {
+      "name": "en-US language applies",
+      "pass": true
+    },
+    {
+      "name": "de-DE language applies",
+      "pass": true
+    },
+    {
+      "name": "fr-FR language applies",
+      "pass": true
+    },
+    {
+      "name": "four format tabs including Icepick",
+      "pass": true
+    },
+    {
+      "name": "Icepick panel visible",
+      "pass": true
+    },
+    {
+      "name": "standalone Icepick entry absent",
+      "pass": true
+    },
+    {
+      "name": "vanilla launch page visible",
+      "pass": true
+    },
+    {
+      "name": "Northstar launch page visible after return",
+      "pass": true
+    },
+    {
+      "name": "directory selection controls visible",
+      "pass": true
+    }
+  ],
+  "languages": [
+    {
+      "locale": "zh-CN",
+      "play": "启动游戏",
+      "folder": "更改目录",
+      "nav": "皮肤安装"
+    },
+    {
+      "locale": "zh-TW",
+      "play": "開始遊戲",
+      "folder": "變更資料夾",
+      "nav": "造型安裝"
+    },
+    {
+      "locale": "en-US",
+      "play": "Play",
+      "folder": "Change folder",
+      "nav": "Skin installer"
+    },
+    {
+      "locale": "de-DE",
+      "play": "Spielen",
+      "folder": "Ordner ändern",
+      "nav": "Skin-Installation"
+    },
+    {
+      "locale": "fr-FR",
+      "play": "Jouer",
+      "folder": "Changer de dossier",
+      "nav": "Installation de skins"
+    }
+  ],
+  "failures": 0
+}

@@ -28,7 +28,7 @@ gamepath.has_perms = folder => {
 function publish(window, selected, source, checking=false, state={}) {
  const candidate = validPath(selected);
  window.send("gamepath-status", {
-  path:typeof selected === "string" ? selected : "", valid:Boolean(candidate), checking, source,
+  path:typeof selected === "string" ? selected : "", valid:Boolean(candidate) && state.installable !== true, checking, source,
   selected:state.selected === true, installable:state.installable === true,
   writable:candidate ? gamepath.has_perms(candidate) : false,
   northstarInstalled:!!candidate && (()=>{try{const stat=fs.lstatSync(path.join(candidate,"NorthstarLauncher.exe"));return stat.isFile()&&!stat.isSymbolicLink();}catch(_){return false;}})()
@@ -41,6 +41,7 @@ function publishGlobal(window, selected, source, checking=false) {
  });
 }
 async function accept(window, folder, source, baseSource) {
+ if (settings().globalGamepath) dualInstall.ensureDisjoint(folder, settings().globalGamepath);
  const currentRoot = validPath(settings().gamepath), savedSource = validPath(settings().chinaSourceGamepath);
  const sourceRoot = validPath(baseSource) || (savedSource && currentRoot && findgame.sameGamePath(folder, currentRoot) ? savedSource : folder);
  await settings().save({gamepath:folder, chinaSourceGamepath:sourceRoot, chinaInstallTarget:"", zip:path.join(folder,"northstar.zip")});
@@ -53,6 +54,8 @@ async function accept(window, folder, source, baseSource) {
  await gamepath.setGlobal(window, false);
 }
 async function acceptGlobal(window, folder, source, ready=true) {
+ if (settings().gamepath) dualInstall.ensureDisjoint(settings().gamepath, folder);
+ if (settings().chinaInstallTarget) dualInstall.ensureDisjoint(settings().chinaInstallTarget, folder);
  await settings().save({globalGamepath:folder});
  window.send("globalpath-status", {path:folder, valid:ready, selected:true, installable:!ready, checking:false, source});
  window.send("globalpath-selected", folder);
@@ -112,10 +115,10 @@ gamepath.set = async (window, forceDialog=false) => {
     buttonLabel:"使用此目录", properties:["openDirectory"], ...(defaultPath ? {defaultPath} : {})
    });
    if (result.canceled || !result.filePaths.length) {publish(window, saved, "cancelled"); return false;}
-   const selected = findgame.resolveSelectedGamePath(result.filePaths[0]);
+   const selected = validPath(result.filePaths[0]);
    if (!selected) {
     const picked = findgame.normalizeGamePath(result.filePaths[0]);
-    if (picked && await dualInstall.isEmptyDirectory(picked)) {
+    if (picked) {
      const source = validPath(saved) || validPath(settings().chinaSourceGamepath) || validPath(await findgame());
      if (!source) {
       await window.alert("当前找不到可复制的泰坦陨落 2 源目录。请先安装游戏，或先选择 Steam 中现有的游戏目录。");
@@ -130,19 +133,31 @@ gamepath.set = async (window, forceDialog=false) => {
       if (!window.isVisible()) window.show();
       return true;
      } catch (error) {
-      const message = error.code === "GLOBAL_TARGET_OVERLAPS_SOURCE" || error.code === "GLOBAL_TARGET_SAME_AS_SOURCE"
-       ? "国服独立目录必须与游戏源目录和全球服目录完全分开。"
-       : error.code === "GLOBAL_VOLUME_NOT_NTFS"
-        ? "国服和全球服独立目录必须位于 NTFS 磁盘上。"
-        : error.code === "GLOBAL_TARGET_NOT_EMPTY" || error.code === "GLOBAL_TARGET_INCOMPLETE"
-         ? "请选择空文件夹，或选择包含完整游戏文件的目录。"
-         : "无法使用所选文件夹，请选择一个可访问的空 NTFS 文件夹。";
+      const message = error.code === "GLOBAL_TARGET_SAME_AS_SOURCE"
+       ? "国服和国际服不能使用同一个目录。"
+       : error.message;
       await window.alert(message);
       continue;
      }
     }
-    await window.alert("所选目录中未找到 Titanfall2.exe。请选择游戏安装根目录（也可选择 Steam 游戏库，TFX 会查找其中的泰坦陨落 2），或选择空文件夹安装国服独立副本。");
+    await window.alert("请选择有效的游戏目录或安装文件夹。");
     continue;
+   }
+   if (settings().globalGamepath) {
+    try {dualInstall.ensureDisjoint(selected, settings().globalGamepath);}
+    catch (error) {await window.alert("国服和国际服不能使用同一个目录。"); continue;}
+   }
+   const source = validPath(saved) || validPath(settings().chinaSourceGamepath);
+   if (source && !findgame.sameGamePath(source, selected)) {
+    try {
+     const target = await dualInstall.inspectInstallTarget({sourceRoot:source, targetRoot:selected});
+     if (target.installable) {
+      await settings().save({chinaSourceGamepath:source, chinaInstallTarget:target.root});
+      publish(window, target.root, "target-selected", false, {selected:true, installable:true});
+      if (!window.isVisible()) window.show();
+      return true;
+     }
+    } catch (error) {await window.alert(error.message); continue;}
    }
    await accept(window, selected, "manual"); return true;
   }
@@ -224,7 +239,7 @@ gamepath.setGlobal = async (window, forceDialog=true) => {
     await window.alert("请选择有效的全球服安装文件夹。");
     continue;
    }
-   const existing = findgame.resolveSelectedGamePath(picked);
+   const existing = validPath(picked);
    const source = validPath(settings().gamepath);
    try {
     if (settings().chinaInstallTarget) dualInstall.ensureDisjoint(settings().chinaInstallTarget, existing || picked);
@@ -234,13 +249,9 @@ gamepath.setGlobal = async (window, forceDialog=true) => {
     await acceptGlobal(window, selected, "manual", target.ready);
     return selected;
    } catch (error) {
-    const message = error.code === "GLOBAL_TARGET_NOT_EMPTY"
-     ? "所选文件夹不是空目录，也不是有效的独立游戏目录。请选择一个空的 NTFS 文件夹或已安装的 Titanfall 2 目录。"
-     : error.code === "GLOBAL_VOLUME_NOT_NTFS"
-      ? "国服和全球服目录必须位于 NTFS 磁盘上。请选择其他磁盘或文件夹。"
-      : error.code === "GLOBAL_TARGET_OVERLAPS_SOURCE"
-       ? "全球服必须安装到与国服完全分开的目录。请选择另一位置。"
-       : "无法使用此全球服目录，请选择一个可访问的空 NTFS 文件夹。";
+    const message = error.code === "GLOBAL_TARGET_SAME_AS_SOURCE" || error.code === "GLOBAL_TARGET_OVERLAPS_SOURCE"
+     ? "国服和国际服不能使用同一个目录。"
+     : error.message;
     await window.alert(message);
     continue;
    }
