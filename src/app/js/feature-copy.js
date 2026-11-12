@@ -2,6 +2,12 @@
 (() => {
   'use strict';
   Object.assign(window.VyraLocales.messages, {
+    "official.installRuntime":["安装国际服框架", "Install Global framework"],
+    "official.replaceRuntime":["替换为国际服框架", "Replace with Global framework"],
+    "official.repairRuntime":["修复国际服框架", "Repair Global framework"],
+    "official.error.runtimeMissing":["游戏根目录未安装国际服北极星框架，无法带 Mod 启动原版。请先安装国际服框架。", "The vanilla game folder has no Global Northstar framework. Install it there before launching with Mods."],
+    "official.error.runtimeCn":["游戏根目录安装的是国服北极星，原版带 Mod 需要国际服框架。确认替换后会保留用户模组。", "The vanilla game folder contains CN Northstar. With Mods requires the Global framework. Your personal mods will be kept after you confirm replacement."],
+    "official.error.runtimeDamaged":["游戏根目录的国际服北极星框架不完整，请先修复框架。", "The Global Northstar framework in the vanilla game folder is incomplete. Repair the framework first."],
     "diagnostic.outcome.clean-recovery-failed":["不带 Mod 启动的组件恢复未完成。","Component recovery for a launch without Mods did not complete."],
     "official.errorTitle":["启动组件需要处理","Launch components need attention"],
     "official.error.game":["请先在偏好设置中选择有效的 Titanfall 2 游戏目录。", "Choose a valid Titanfall 2 game folder in Preferences first."],

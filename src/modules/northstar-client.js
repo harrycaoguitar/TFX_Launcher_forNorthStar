@@ -557,7 +557,7 @@ class NorthstarClientSwitcher {
     };
     if (active) {
       const isActive = !shared || shared.channel === active.channel && (!receipt || [...ROOT_FILES].every(filename => equalInfo(shared.files.find(file => key(file.path) === filename) || null, receipt.files.find(file => key(file.path) === filename) || null)));
-      const required = receipt ? receipt.files.filter(file => isActive || !ROOT_FILES.has(key(file.path))) : [{path: "NorthstarLauncher.exe"}, {path: active.channel === "cn" ? "Northstar.dll" : this.mapPath(context, "R2Northstar/Northstar.dll")}, ...CORE_DIRS.map(core => ({path: this.mapPath(context, core + "/mod.json")}))];
+      const required = receipt ? receipt.files.filter(file => isActive || !ROOT_FILES.has(key(file.path))) : [{path: "NorthstarLauncher.exe"}, {path: "bin/x64_retail/wsock32.dll"}, {path: active.channel === "cn" ? "Northstar.dll" : this.mapPath(context, "R2Northstar/Northstar.dll")}, ...CORE_DIRS.map(core => ({path: this.mapPath(context, core + "/mod.json")}))];
       const exists = await presence(context.root, required);
       if (exists.present) result[active.channel] = {channel: active.channel, installed: true, active: isActive, version: active.version, source: isActive ? "active" : "managed-profile", damaged: !!exists.missing, ...(exists.missing ? {error: "北极星客户端文件缺失或损坏，请重新安装"} : {})};
     }

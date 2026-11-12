@@ -1,4 +1,11 @@
 {
+  "official_runtime": {
+    "replaceTitle": "替换游戏根目录的北极星框架",
+    "replaceMessage": "原版带 Mod 需要国际服北极星框架。是否将本目录的国服框架替换为国际服？",
+    "replaceDetail": "将备份并移除国服加载文件与三套官方核心模组，再写入完整国际服框架。您自己安装的模组会保留，独立客户端目录不受影响。此目录之后将使用国际服框架；替换失败会恢复原文件。",
+    "replaceConfirm": "备份并替换",
+    "cancel": "取消"
+  },
   "mods": {"sort":{"label":"排列","added":"添加时间","name":"名称首字母","enabled":"启用状态"}},
   "cli": {
     "auto_updates": {

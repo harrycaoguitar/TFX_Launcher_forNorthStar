@@ -26,6 +26,7 @@
   const blocked = () => installing || changing || launching() || window.Settings?.saving || window.VyraClient?.busy || externalUpdate;
   const t = (key, parameters) => I18n.t('official.' + key, parameters);
   const damaged = value => value?.installState === 'damaged' || ['damaged','needs-repair'].includes(value?.state);
+  const runtimeAction = value => value?.runtimeState === 'cn' ? 'replaceRuntime' : value?.runtimeState === 'missing' ? 'installRuntime' : ['damaged','outdated'].includes(value?.runtimeState) ? 'repairRuntime' : null;
   function startWhenReady(startGame, expectedContext) {
     const region = settings.northstarRegion === 'global' ? 'global' : 'cn';
     const snapshot = window.VyraGameProcesses?.snapshot;
@@ -87,6 +88,7 @@
     else if (installingChinaRoot) playButton.textContent = I18n.current === 'zh-CN' ? '安装国服' : 'Install China game';
     else if (!enabled()) playButton.textContent = lang('gui.launch');
     else if (request) playButton.textContent = t('checking');
+    else if (runtimeAction(status)) playButton.textContent = t(runtimeAction(status));
     else if (damaged(status)) playButton.textContent = t('repair');
     else if (status?.installed === false) playButton.textContent = t('install');
     else if (status?.installed === true && !status.error) playButton.textContent = lang('gui.launch');
@@ -152,6 +154,7 @@
     installing = true; progress = {phase:'checking'}; dismissNotice(); render();
     try {
       const result = await ipcRenderer.invoke('vanilla-client-install',repair ? {repair:true} : {});
+      if (result?.canceled) {if (capturedContext === context() && result.status) status = {...result.status}; return;}
       if (!result?.ok || capturedContext !== context()) throw Object.assign(Error(result?.error || t('installFailed')),{code:result?.code});
       if (result.status) status = {...result.status};
       const fresh = await refresh(true);
@@ -198,6 +201,7 @@
   });
   ipcRenderer.on('launch-status',(_event,value) => {
     if (value?.state === 'confirmed') lastStart = null;
+    if (value?.state === 'failed' && /^VANILLA_RUNTIME_/u.test(value.code || '')) {lastStart = null; status = null; void refresh(true); return;}
     if (value?.state !== 'failed' || value.code !== 'VANILLA_CLIENT_NOT_INSTALLED') {
       if (value?.state === 'failed') lastStart = null;
       renderAction(); return;

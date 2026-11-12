@@ -63,7 +63,7 @@ async function trustedProxyFingerprints(gameRoot, fingerprint) {
   }
   return result;
 }
-async function targetVersion(region,info,conf) {
+async function targetVersion(region,info,conf,explicitRoot) {
   let manifest=validateManifest(await metadata(path.join(cache.sourceRoot,region,"manifest.json")),region);
   const pointer=path.join(cache.cacheRoot,"updates",region+".json");
   await cache.safeCachePath(pointer);
@@ -79,18 +79,18 @@ async function targetVersion(region,info,conf) {
   let version=manifest.version;
   const snapshot=info?.backupRoot&&path.join(info.backupRoot,"channel-cache",region,"manifest.json");
   if(snapshot&&fs.existsSync(snapshot)){
-    const local=validateManifest(await metadata(snapshot),region), ctx=context(conf,region);
+    const local=validateManifest(await metadata(snapshot),region), ctx=context(conf,region,explicitRoot);
     if(local.provenance?.kind!=="private-installed-snapshot"||path.resolve(local.provenance.gameRoot).toLowerCase()!==path.resolve(ctx.gameRoot).toLowerCase()||local.provenance.profile.toLowerCase()!==ctx.profile.toLowerCase())throw Error("北极星本地客户端快照来源无效");
     if(require("./releases").compareVersions(local.version,version)>0)version=local.version;
   }
   if(region==="cn"&&info?.installed?.channel==="cn"&&info.installed.recognized&&require("./releases").compareVersions(info.installed.version,version)>0)version=info.installed.version;
   return version;
 }
-async function status(region, configuration) {
+async function status(region, configuration, explicitRoot) {
   const conf={...(configuration||settings())};
   region = network.normalize(region || conf.northstarRegion);
   try {
-    const info = await engine().inspect({...context(conf,region),includeAvailable:false}), version=await targetVersion(region,info,conf);
+    const info = await engine().inspect({...context(conf,region,explicitRoot),includeAvailable:false}), version=await targetVersion(region,info,conf,explicitRoot);
     const selected=info.available?.[region]||info.channels?.[region];
     const active=selected?.active ?? (info.installed?.channel===region);
     const installed=selected?.installed ?? active;
@@ -104,7 +104,7 @@ async function status(region, configuration) {
     return {ok:false,region,version,installed:false,active:false,installState:"not-installed",state:"missing",selectedVersion:null,installedRegion:null,installedVersion:"unknown",ready:false,pending:false,error:error.message};
   }
 }
-async function ensure({conf=settings(),directory,repair=false,allowInstall=false,refresh=false,guard,onProgress}={}) {
+async function ensure({conf=settings(),gameRoot,directory,repair=false,allowInstall=false,refresh=false,guard,onProgress}={}) {
   conf=Object.freeze({...conf});
   let selectionGuard=guard;
   const guardSelection=async()=>{
@@ -126,7 +126,7 @@ async function ensure({conf=settings(),directory,repair=false,allowInstall=false
   try {
     progress({region,phase:"checking",percent:0});
     await guardSelection();
-    const args={...context(conf,region),channel:region,repair:repair===true,allowInstall:allowInstall===true,refresh:refresh===true,refreshClient:Boolean(directory)};
+    const args={...context(conf,region,gameRoot),channel:region,repair:repair===true,allowInstall:allowInstall===true,refresh:refresh===true,refreshClient:Boolean(directory)};
     const switcher=directory||guard||onProgress?createClientSwitcher({bundleRoot:cache.sourceRoot,stateRoot:path.join(dataRoot,"transactions"),bundleProvider:async channel=>directory&&channel===region?{directory,preferSnapshot:false}:cache.descriptor(channel),processCheck:async()=>{await guardSelection();const snapshot=await require("./is_running").snapshot();await guardSelection();return snapshot;},progress}):engine();
     const result=await switcher.ensure(args);await switcher.assertReady(args);
     ipcMain.emit("get-version");ipcMain.emit("gui-getmods");return result;

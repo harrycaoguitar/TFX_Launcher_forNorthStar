@@ -1595,6 +1595,16 @@
     "Component recovery for a launch without Mods did not complete.": "不帶 Mod 啟動的元件還原未完成。",
     "The game exited before the main menu finished loading. If you did not close it, check recently enabled Mods or skins first, then EA App / Steam sign-in prompts and the launch diagnostics.": "遊戲在主選單載入完成前結束。若不是手動關閉，請先排查最近啟用的 Mod 或皮膚，再檢查 EA App / Steam 登入提示與啟動診斷。",
     "The game exited before the main menu finished loading (code $1). If you did not close it, check recently enabled Mods or skins first, then EA App / Steam sign-in prompts and the launch diagnostics.": "遊戲在主選單載入完成前結束（結束代碼 $1）。若不是手動關閉，請先排查最近啟用的 Mod 或皮膚，再檢查 EA App / Steam 登入提示與啟動診斷。",
-    "The game exited before the main menu finished loading ($1). If you did not close it, check recently enabled Mods or skins first, then EA App / Steam sign-in prompts and the launch diagnostics.": "遊戲在主選單載入完成前結束（$1）。若不是手動關閉，請先排查最近啟用的 Mod 或皮膚，再檢查 EA App / Steam 登入提示與啟動診斷。"
+    "The game exited before the main menu finished loading ($1). If you did not close it, check recently enabled Mods or skins first, then EA App / Steam sign-in prompts and the launch diagnostics.": "遊戲在主選單載入完成前結束（$1）。若不是手動關閉，請先排查最近啟用的 Mod 或皮膚，再檢查 EA App / Steam 登入提示與啟動診斷。",
+    "Install Global framework": "安裝國際服框架",
+    "Replace with Global framework": "替換為國際服框架",
+    "Repair Global framework": "修復國際服框架",
+    "The vanilla game folder has no Global Northstar framework. Install it there before launching with Mods.": "遊戲根目錄未安裝國際服北極星框架，無法帶 Mod 啟動原版。請先安裝國際服框架。",
+    "The vanilla game folder contains CN Northstar. With Mods requires the Global framework. Your personal mods will be kept after you confirm replacement.": "遊戲根目錄安裝的是國服北極星，原版帶 Mod 需要國際服框架。確認替換後會保留使用者模組。",
+    "The Global Northstar framework in the vanilla game folder is incomplete. Repair the framework first.": "遊戲根目錄的國際服北極星框架不完整，請先修復框架。",
+    "Replace Northstar in the vanilla game folder": "替換遊戲根目錄的北極星框架",
+    "With Mods requires Global Northstar. Replace the CN framework in this folder with the Global framework?": "原版帶 Mod 需要國際服北極星框架。是否將本目錄的國服框架替換為國際服？",
+    "CN loader files and the three official core mods will be backed up and removed, then the complete Global framework will be installed. Your personal mods and separate client folders will be kept. This folder will then use the Global framework. If replacement fails, the original files will be restored.": "將備份並移除國服載入檔案與三套官方核心模組，再寫入完整國際服框架。您自行安裝的模組會保留，獨立用戶端目錄不受影響。此目錄之後將使用國際服框架；替換失敗會還原原檔案。",
+    "Back up and replace": "備份並替換"
   }
 }

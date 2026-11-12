@@ -123,6 +123,9 @@ function createManager({bundleRoot = path.join(__dirname, "../tools/vanilla-plus
   async function install(profileDirectory, {guard = async () => {}, onProgress = () => {}} = {}) {
     const location = locations(profileDirectory), data = await manifest();
     if (!equalFiles(await inventory(payload),data.files)) fail("VANILLA_PLUS_BUNDLE", "内置 VanillaPlus 文件校验失败，请重新安装 TFX。");
+    if (!await checked(location.profile,"directory",true)) {
+      await guard(); await fsp.mkdir(location.profile,{recursive:true});
+    }
     await checked(location.profile,"directory");
     const before = await inspect(profileDirectory);
     if (before.state === "conflict") fail(before.code,before.error);

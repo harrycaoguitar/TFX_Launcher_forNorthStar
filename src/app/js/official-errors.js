@@ -12,6 +12,9 @@
   "busy": "busy",
   "VANILLA_CLIENT_NOT_INSTALLED": "missing",
   "VANILLA_RUNTIME_OUTDATED": "runtime",
+  "VANILLA_RUNTIME_MISSING": "runtimeMissing",
+  "VANILLA_RUNTIME_CN": "runtimeCn",
+  "VANILLA_RUNTIME_DAMAGED": "runtimeDamaged",
   "VANILLA_CLIENT_STATUS": "statusFailed",
   "VANILLA_CLIENT_INSTALL": "installFailed",
   "VANILLA_PLUS_DUPLICATE": "duplicate",
@@ -29,6 +32,10 @@
   "CLEAN_LAUNCH_RECOVERY": "cleanRecovery"
 };
   const exact = {
+  "游戏根目录未安装国际服北极星框架，无法带 Mod 启动原版。请先安装国际服框架。": "runtimeMissing",
+  "游戏根目录安装的是国服北极星，原版带 Mod 需要国际服框架。确认替换后会保留用户模组。": "runtimeCn",
+  "游戏根目录的国际服北极星框架不完整，请先修复框架。": "runtimeDamaged",
+  "游戏根目录的国际服北极星框架版本过旧，请先更新框架。": "runtime",
   "无法读取纯净启动组件校验清单，请修复客户端资源后重试。": "cleanRecovery",
   "官服 Mod 配置目录无效。": "notReady",
   "VanillaPlus 未启用，官服 Mod 模式没有加载。请退出游戏后重新安装官服 Mod 组件。": "notReady",
@@ -66,6 +73,7 @@
   "VanillaPlus 安装校验失败，请重新安装官服 Mod 组件。": "verify",
   "无法确认游戏进程，请稍后重试。": "process",
   "请先退出游戏，再安装官服 Mod 组件。": "gameRunning",
+  "请先退出所选游戏目录中的 Titanfall 2，再安装官服 Mod 组件。": "gameRunning",
   "启动模式或游戏目录已改变，请重新安装所选组件。": "changed",
   "VanillaPlus 路径不能包含链接或无效的父目录。": "invalid",
   "VanillaPlus 路径类型不正确。": "invalid",
@@ -89,6 +97,9 @@
   "VanillaPlus 安装后校验失败。": "verify"
 };
   const english = {
+  "runtimeMissing": "The vanilla game folder has no Global Northstar framework. Install it there before launching with Mods.",
+  "runtimeCn": "The vanilla game folder contains CN Northstar. With Mods requires the Global framework. Your personal mods will be kept after you confirm replacement.",
+  "runtimeDamaged": "The Global Northstar framework in the vanilla game folder is incomplete. Repair the framework first.",
   "game": "Choose a valid Titanfall 2 game folder in Preferences first.",
   "gameRunning": "Close Titanfall 2 before installing or repairing official-game Mod components.",
   "process": "The game process could not be checked. Check running game processes and try again.",
