@@ -270,7 +270,7 @@
         return;
       }
       if (channel === 'get-version') {
-        setTimeout(() => emitLocal('version', { launcher: '3.0.0', viper: '3.0.0', ns: '1.31.1' }), 10);
+        setTimeout(() => emitLocal('version', { launcher: '2.0.0', viper: '2.0.0', ns: '1.31.1' }), 10);
         return;
       }
       if (channel === 'gui-getmods') {

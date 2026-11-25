@@ -4,8 +4,8 @@
 )
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
-$version = '3.0.0'
-$fileVersion = '3.0.0.0'
+$version = '2.0.0'
+$fileVersion = '2.0.0.0'
 
 $relDir = Join-Path $root 'src-tauri\target\release'
 $bin = Join-Path $relDir 'tfx-launcher-tauri.exe'

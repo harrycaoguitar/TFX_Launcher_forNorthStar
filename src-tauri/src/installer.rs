@@ -48,7 +48,7 @@ pub fn is_vanilla_plus_installed(root: &Path) -> bool {
 async fn download_bytes(url: &str) -> Result<Vec<u8>, String> {
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(120))
-        .user_agent("TFX/3.0.0 installer")
+        .user_agent("TFX/2.0.0 installer")
         .build()
         .map_err(|e| e.to_string())?;
     let resp = client
@@ -69,7 +69,7 @@ async fn fetch_github_zip_asset(repo: &str) -> Result<(String, String), String> 
     let api = format!("https://api.github.com/repos/{repo}/releases/latest");
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(15))
-        .user_agent("TFX/3.0.0 updater")
+        .user_agent("TFX/2.0.0 updater")
         .build()
         .map_err(|e| e.to_string())?;
     let resp = client

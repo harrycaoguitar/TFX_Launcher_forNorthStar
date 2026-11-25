@@ -119,7 +119,7 @@ pub async fn fetch(region: &str, force: bool) -> ServerListResponse {
 
     let client = match reqwest::Client::builder()
         .timeout(Duration::from_secs(9))
-        .user_agent("TFX/3.0.0 server-list")
+        .user_agent("TFX/2.0.0 server-list")
         .build()
     {
         Ok(c) => c,

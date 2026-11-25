@@ -35,7 +35,7 @@ pub async fn fetch_thunderstore() -> Result<Value, String> {
 
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(15))
-        .user_agent("TFX/3.0.0 catalog")
+        .user_agent("TFX/2.0.0 catalog")
         .build()
         .map_err(|e| e.to_string())?;
 
@@ -113,7 +113,7 @@ pub async fn install_from_url(
 
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(60))
-        .user_agent("TFX/3.0.0 installer")
+        .user_agent("TFX/2.0.0 installer")
         .build()
         .map_err(|e| e.to_string())?;
     let resp = client.get(url).send().await.map_err(|e| format!("下载模组失败：{e}"))?;
@@ -143,7 +143,7 @@ pub async fn check_update(kind: &str) -> Value {
     let conf = settings::load();
     let region = conf.get("northstarRegion").and_then(|v| v.as_str()).unwrap_or("cn");
     let current = if kind == "launcher" {
-        "3.0.0"
+        "2.0.0"
     } else if region == "global" {
         "1.31.1"
     } else {
@@ -159,7 +159,7 @@ pub async fn check_update(kind: &str) -> Value {
     let api = format!("https://api.github.com/repos/{repo}/releases/latest");
     let client = match reqwest::Client::builder()
         .timeout(Duration::from_secs(8))
-        .user_agent("TFX/3.0.0 updater")
+        .user_agent("TFX/2.0.0 updater")
         .build()
     {
         Ok(c) => c,

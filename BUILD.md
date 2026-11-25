@@ -1,4 +1,4 @@
-# 从源码构建 TFX Launcher 3.0.0
+# 从源码构建 TFX Launcher 2.0.0
 
 ## 环境要求
 
@@ -40,5 +40,5 @@ cargo build --release
 ```
 
 构建完成后将在 `dist\` 下生成：
-- `dist\TFX-Launcher-3.0.0\`：免安装绿色版目录
-- `dist\TFX-Launcher-3.0.0-Setup.exe`：5 语言图形化安装程序（支持简中 / 繁中 / EN / DE / FR）
+- `dist\TFX-Launcher-2.0.0\`：免安装绿色版目录
+- `dist\TFX-Launcher-2.0.0-Setup.exe`：5 语言图形化安装程序（支持简中 / 繁中 / EN / DE / FR）
