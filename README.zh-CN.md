@@ -102,6 +102,7 @@ npm run build:win      # 构建品牌 NSIS 安装器
 - **Glock-雨夜**
 - **HK560**
 - **zxcPandora**
+- **R1Delta 团队**
 
 同时感谢 **R1Delta**、**CrazyZhang666 / EAappEmulater**、**Icepick** 项目，以及所有上游开发者、测试与反馈玩家。
 

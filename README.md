@@ -102,6 +102,7 @@ For support, open a [GitHub Issue](https://github.com/harrycaoguitar/TFX_Launche
 - **Glock-雨夜**
 - **HK560**
 - **zxcPandora**
+- **R1Delta Team**
 
 Thanks also to **R1Delta**, **CrazyZhang666 / EAappEmulater**, the **Icepick** project, and all upstream developers, testers, and players who contributed feedback.
 

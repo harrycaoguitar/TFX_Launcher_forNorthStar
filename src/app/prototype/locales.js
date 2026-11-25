@@ -340,6 +340,7 @@ DNS 预设	DNS preset	DNS-Vorgabe	DNS 預設	Préréglage DNS
 项目主页	Project homepage	Projektseite	專案首頁	Page du projet
 合作伙伴	Partners	Partner	合作夥伴	Partenaires
 特别鸣谢	Special thanks	Besonderer Dank	特別感謝	Remerciements
+Northstar、NorthstarCN、Glock-雨夜、HK560、zxcPandora、R1Delta 团队	Northstar, NorthstarCN, Glock-雨夜, HK560, zxcPandora, R1Delta Team	Northstar, NorthstarCN, Glock-雨夜, HK560, zxcPandora, R1Delta Team	Northstar、NorthstarCN、Glock-雨夜、HK560、zxcPandora、R1Delta 團隊	Northstar, NorthstarCN, Glock-雨夜, HK560, zxcPandora, équipe R1Delta
 许可证	License	Lizenz	授權條款	Licence
 界面语言	Interface language	Oberflächensprache	介面語言	Langue de l’interface
 尚未检查	Not checked	Noch nicht geprüft	尚未檢查	Non vérifié
