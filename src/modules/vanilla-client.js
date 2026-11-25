@@ -15,7 +15,7 @@ function send(payload) {try {require("../win")().send("vanilla-client-progress",
 function context(conf) {
   const root = require("./game-roots").resolveGameRoot(conf, {gameVersion: "vanilla"});
   if (!root) throw Object.assign(Error("请先选择有效的 Titanfall 2 游戏目录。"),{code:"GAME_DIRECTORY_INVALID"});
-  return {root,profile:network.resolveProfile(root,splitArguments(conf.nsargs||""))};
+  return {root,profile:network.resolveProfile(root,splitArguments(conf.nsargs||""),network.OFFICIAL_PROFILE)};
 }
 async function status(configuration = settings()) {
   const conf = {...configuration};
@@ -31,7 +31,8 @@ async function status(configuration = settings()) {
   } catch (error) {return {ok:false,installed:false,verified:false,version:require("./vanilla-plus").VERSION,state:"missing",error:error.message,code:error.code||"VANILLA_CLIENT_STATUS"};}
 }
 async function inspectRuntime(conf,ctx) {
-  const runtime = await clients.status("global",conf,ctx.root);
+  const runtimeConf = {...conf,northstarRegion:"global",nsargs:"-profile="+network.OFFICIAL_PROFILE};
+  const runtime = await clients.status("global",runtimeConf,ctx.root);
   if (!runtime.ok) throw Object.assign(Error(runtime.error),{code:"VANILLA_CLIENT_STATUS"});
   // Root-level CN loaders also identify partial or mixed installations. A
   // cached client or a global client in another game folder is not sufficient.
@@ -39,8 +40,8 @@ async function inspectRuntime(conf,ctx) {
   const version = runtime.selectedVersion || runtime.installedVersion;
   let runtimeState,code,error;
   if (cn) {runtimeState="cn";code="VANILLA_RUNTIME_CN";error="游戏根目录安装的是国服北极星，原版带 Mod 需要国际服框架。确认替换后会保留用户模组。";}
-  else if (!runtime.installed || !runtime.active) {runtimeState="missing";code="VANILLA_RUNTIME_MISSING";error="游戏根目录未安装国际服北极星框架，无法带 Mod 启动原版。请先安装国际服框架。";}
   else if (runtime.installState === "damaged" || runtime.pending) {runtimeState="damaged";code="VANILLA_RUNTIME_DAMAGED";error="游戏根目录的国际服北极星框架不完整，请先修复框架。";}
+  else if (!runtime.installed || !runtime.active) {runtimeState="missing";code="VANILLA_RUNTIME_MISSING";error="游戏根目录未安装国际服北极星框架，无法带 Mod 启动原版。请先安装国际服框架。";}
   else if (!version || require("./releases").compareVersions(version,MIN_RUNTIME_VERSION)<0) {runtimeState="outdated";code="VANILLA_RUNTIME_OUTDATED";error=`官服 Mod 模式需要国际服 Northstar ${MIN_RUNTIME_VERSION} 或更新版本，请更新游戏根目录的国际服框架。`;}
   else runtimeState="global";
   return {runtimeState,version,code,error};
@@ -60,8 +61,13 @@ async function ensure({conf = settings(),allowInstall = false,repair = false,rep
   await guard?.(); component = await engine().inspect(ctx.profile);
   if (!component.verified) throw Object.assign(Error("VanillaPlus 安装校验失败，请重新安装官服 Mod 组件。"),{code:"VANILLA_CLIENT_NOT_INSTALLED"});
   send({phase:"preparing",percent:40});
-  const runtime = await clients.ensure({conf:{...conf,northstarRegion:"global"},gameRoot:ctx.root,allowInstall,repair:repair || before.runtimeState === "cn",refresh:allowInstall,guard,onProgress:value=>send({phase:"preparing",percent:40+Math.round(Math.max(0,Math.min(100,value.percent||0))*.55)})});
+  const runtime = await clients.ensure({conf:{...conf,northstarRegion:"global",nsargs:"-profile="+network.OFFICIAL_PROFILE},gameRoot:ctx.root,allowInstall,repair:repair || before.runtimeState === "cn",refresh:allowInstall,guard,onProgress:value=>send({phase:"preparing",percent:40+Math.round(Math.max(0,Math.min(100,value.percent||0))*.55)})});
   if (require("./releases").compareVersions(runtime.version,MIN_RUNTIME_VERSION)<0) throw Object.assign(Error("游戏根目录的国际服北极星框架版本过旧，请先更新框架。"),{code:"VANILLA_RUNTIME_OUTDATED"});
+  if (allowInstall) {
+    await guard?.();
+    component = await engine().inspect(ctx.profile);
+    if (!component.verified) throw Object.assign(Error("VanillaPlus 安装校验失败，请重新安装官服 Mod 组件。"),{code:"VANILLA_CLIENT_NOT_INSTALLED"});
+  }
   send({phase:"done",percent:100});
   return {componentVersion:component.version,version:runtime.version,profile:ctx.profile,changed:runtime.changed||componentChanged};
 }

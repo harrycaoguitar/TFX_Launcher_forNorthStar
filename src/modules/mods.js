@@ -7,6 +7,7 @@ const repairJSON = require("jsonrepair");
 const {app, ipcMain, dialog} = require("electron");
 const settings = require("./settings");
 const profileResolver = require("./northstar-region");
+const gameRoots = require("./game-roots");
 const {splitArguments} = require("./launch-session");
 const stateFile = require("./mod-enabled-state");
 const serverProfiles = require("./server-mod-profiles");
@@ -55,11 +56,11 @@ function directories(context, parent) {
 function profileContext(options = {}) {
   const saved = settings(), server = serverProfiles.selectedServer(saved);
   let gamePath;
-  try {gamePath = options.gamepath === undefined ? require("./game-roots").gameRootForServer(saved, server) : options.gamepath;}
+  try {gamePath = options.gamepath === undefined ? gameRoots.gameRootForServer(saved, server) : options.gamepath;}
   catch (_) {return null;}
   if (typeof gamePath !== "string" || !gamePath.trim() || !fs.existsSync(gamePath)) return null;
   const root = fs.realpathSync(gamePath);
-  const profile = options.profileDirectory ? path.resolve(options.profileDirectory) : profileResolver.resolveProfile(root, splitArguments(saved.nsargs || ""));
+  const profile = options.profileDirectory ? path.resolve(options.profileDirectory) : profileResolver.resolveProfile(root, splitArguments(saved.nsargs || ""), server === "official" ? profileResolver.OFFICIAL_PROFILE : undefined);
   if (!within(root, profile)) throw Error("The selected Northstar profile is outside the game folder.");
   regularPath(root, profile, "directory");
   if (!regularPath(root, path.join(root, "NorthstarLauncher.exe"), "file")) return null;
@@ -176,17 +177,22 @@ function assertWritable(options={}) {
 }
 async function guardedMutation(action, options={}) {
   assertWritable(options);
+  const initial = {...settings()};
   const context = profileContext();
-  const selected = {gamePath: context?.root, cnGamePath: settings().gamepath, globalGamePath: settings().globalGamepath, arguments: settings().nsargs || "", region: serverProfiles.selectedServer(settings()), independent: settings().independentServerMods};
-  const guard = async () => {
+  if (!context) throw Error("The selected game profile is unavailable; choose an installed game folder.");
+  const assertSelection = () => {
     const current = settings();
-    if ((profileContext()?.root || null) !== selected.gamePath || current.gamepath !== selected.cnGamePath || current.globalGamepath !== selected.globalGamePath || (current.nsargs || "") !== selected.arguments || serverProfiles.selectedServer(current) !== selected.region || current.independentServerMods !== selected.independent || !context || profileContext()?.profile !== context.profile) throw Error("The selected game profile changed; retry your action.");
+    const selection = profileContext();
+    if (selection?.root !== context.root || selection?.profile !== context.profile || current.gamepath !== initial.gamepath || current.globalGamepath !== initial.globalGamepath || (current.nsargs || "") !== (initial.nsargs || "") || serverProfiles.selectedServer(current) !== serverProfiles.selectedServer(initial) || current.independentServerMods !== initial.independentServerMods) throw Error("The selected game profile changed; retry your action.");
+  };
+  const guard = async () => {
+    assertSelection();
     const snapshot = await require("./is_running").snapshot();
     if (!snapshot.ok) throw Error("Unable to verify whether the game is running. Please retry.");
-    if (require("./game-roots").hasGame(snapshot, context?.root)) throw Error("Please close the game in the selected folder before changing installed mods.");
-    if ((profileContext()?.root || null) !== selected.gamePath || settings().gamepath !== selected.cnGamePath || settings().globalGamepath !== selected.globalGamePath || (settings().nsargs || "") !== selected.arguments || serverProfiles.selectedServer(settings()) !== selected.region || settings().independentServerMods !== selected.independent) throw Error("The selected game profile changed; retry your action.");
+    if (gameRoots.hasGame(snapshot, context.root)) throw Error("Please close the game in the selected folder before changing installed mods.");
+    assertSelection();
   };
-  return require("./dds-operation-gate").run("mod-library", async () => {await guard();mutationDepth++;try{const conf=settings();if(conf.independentServerMods)require("./server-mod-profiles").transition(conf,conf);return action(guard);}finally{mutationDepth--;}});
+  return require("./dds-operation-gate").run("mod-library", async () => {await guard();mutationDepth++;try{const conf=settings();if(conf.independentServerMods)serverProfiles.transition(conf,conf);return await action(guard);}finally{mutationDepth--;}});
 }
 async function guardedResponse(action) {
   try {return await guardedMutation(action);} catch (error) {const result = failure(error); getWindow().log(result.error); return result;}

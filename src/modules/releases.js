@@ -68,7 +68,7 @@ releases.notes.northstar = async () => {
 // version numbers or let a global check select a CN asset.
 function parseVersion(value) {
 	if (typeof value !== "string") return null;
-	const match = value.trim().match(/^v?(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/i);
+	const match = value.trim().match(/^v?(\d+)\.(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/i);
 	if (!match) return null;
 	const parts = match.slice(1, 5).map(part => Number(part || 0));
 	if (!parts.every(Number.isSafeInteger)) return null;
@@ -148,7 +148,7 @@ releases.latest.northstar = async (options = {}) => {
 	} catch (error) {
 		// A malformed/untrusted release is a failed check. A different mirror
 		// cannot turn that response into a trusted or apparently fresh success.
-		if (error.code !== "network" || region === "global") {
+		if (error.code !== "network" || region === "global" || options.githubOnly === true) {
 			releases.latest.status = {source: "GitHub", error: error.code || "format"};
 			return false;
 		}

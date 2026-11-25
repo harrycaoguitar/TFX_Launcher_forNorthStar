@@ -1,0 +1,1213 @@
+/* ==========================================================================
+   TFX Launcher 2.0 — Fluid Tactile Minimalism (Final Competition Edition)
+   - Zero sci-fi/military motifs, zero keyboard-shortcut clutter
+   - 100% preserves original typography, open layout & unified capsule radii
+   - Living ambient light mesh + 3-tier optical rim-light glass
+   - View Transitions fingertip radial theme wipe + Liquid Pill Stretch
+   - Rauno instant-subsequent sliding rail tooltip + Family fluid height tray
+   - Godly/Apple HIG dual-layer rounded focus rings + Amie action feedback
+   ========================================================================== */
+
+:root {
+  --tfx-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --tfx-ease-fluid: cubic-bezier(0.22, 1, 0.36, 1);
+  --tfx-ease-crisp: cubic-bezier(0.2, 0.9, 0.3, 1);
+  --tfx-ease-spring: cubic-bezier(0.34, 1.45, 0.64, 1);
+  --tfx-accent-soft: color-mix(in srgb, var(--action) 13%, transparent);
+  --tfx-rim-top: color-mix(in srgb, #fff 20%, transparent);
+  --tfx-rim-bottom: color-mix(in srgb, #000 9%, transparent);
+}
+
+/* ── 1. Thin Translucent Pill Scrollbars & Branded Dual-Layer Focus Rings ─ */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--muted) 32%, transparent) transparent;
+}
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--muted) 28%, transparent);
+  border-radius: var(--tfx-radius-round) !important;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--accent) 58%, var(--muted));
+}
+*::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+/* Godly / Apple HIG soft rounded dual-layer focus ring (replaces harsh solid outline) */
+html[data-theme] body :is(button, a, input, select, textarea, [tabindex]):focus-visible {
+  outline: none !important;
+  box-shadow:
+    0 0 0 2px var(--bg),
+    0 0 0 4px color-mix(in srgb, var(--accent) 54%, transparent) !important;
+}
+html[data-theme] body .search input:focus-visible {
+  box-shadow: none !important;
+}
+html[data-theme] body .search:focus-within {
+  border-color: var(--accent) !important;
+  box-shadow:
+    0 0 0 2px var(--bg),
+    0 0 0 4px color-mix(in srgb, var(--accent) 42%, transparent) !important;
+}
+
+/* ── 2. Living Slow Ambient Light Mesh (Behind Translucent Surfaces) ────── */
+html body::before {
+  background: color-mix(in srgb, var(--bg) 94%, transparent) !important;
+}
+.tfx-ambient-mesh {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+}
+.tfx-ambient-mesh > span {
+  position: absolute;
+  border-radius: 999px !important;
+  filter: blur(88px);
+  will-change: transform;
+  opacity: 0.14;
+  transition: background-color 600ms ease, opacity 400ms ease;
+}
+.tfx-ambient-mesh > span:nth-child(1) {
+  width: 46vw;
+  height: 46vw;
+  max-width: 620px;
+  max-height: 620px;
+  top: -14%;
+  right: -6%;
+  background: var(--secondary);
+  animation: tfx-mesh-drift-a 26s ease-in-out infinite alternate;
+}
+.tfx-ambient-mesh > span:nth-child(2) {
+  width: 40vw;
+  height: 40vw;
+  max-width: 540px;
+  max-height: 540px;
+  bottom: -16%;
+  left: 6%;
+  background: var(--action);
+  opacity: 0.11;
+  animation: tfx-mesh-drift-b 32s ease-in-out infinite alternate;
+}
+@keyframes tfx-mesh-drift-a {
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(-4vw, 5vh, 0) scale(1.07); }
+  100% { transform: translate3d(2vw, 9vh, 0) scale(0.96); }
+}
+@keyframes tfx-mesh-drift-b {
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(6vw, -4vh, 0) scale(1.09); }
+  100% { transform: translate3d(-2vw, -7vh, 0) scale(0.95); }
+}
+
+/* ── 3. Light-Theme Legibility, Dot Removal & 1360×860 Poster Framing ───── */
+html body .home-launch-editorial.play-stage .region-option,
+html body .home-launch-editorial.play-stage .region-option strong {
+  color: var(--text) !important;
+}
+html body .home-launch-editorial.play-stage .region-option small {
+  color: var(--muted) !important;
+  margin-right: 0 !important;
+}
+html body .region-option.active::after,
+html body .home-launch-editorial.play-stage .region-option.active::after {
+  content: none !important;
+  display: none !important;
+}
+html body .collection-work :is(#mod-results, #r1-addon-results) {
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
+
+html body .app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  transform-origin: center top;
+  transition: transform 300ms var(--tfx-ease-fluid), opacity 240ms ease;
+}
+html body:has(dialog[open]) .app {
+  transform: scale(0.986);
+  opacity: 0.84;
+}
+html body .topbar {
+  height: 70px !important;
+  flex: none;
+}
+html body #main {
+  flex: 1 0 auto;
+  row-gap: 20px !important;
+  padding-bottom: 14px !important;
+}
+html body .home-editorial-heading {
+  min-height: 52px !important;
+}
+html body .home-editorial {
+  gap: 14px !important;
+}
+html body .launch-display {
+  margin: auto 0 !important;
+  padding: 18px 0 8px !important;
+}
+html body .home-launch-editorial.play-stage .launch-footline {
+  margin-top: 6px !important;
+  padding: 10px 0 !important;
+}
+html body .home-editorial .mini-mod-row {
+  padding: 7px 0 !important;
+  min-height: 46px !important;
+}
+html body .home-editorial .health-row {
+  padding: 7px 0 !important;
+  min-height: 38px !important;
+}
+html body .app-footer {
+  margin-top: auto;
+  padding: 8px 2px 10px !important;
+}
+
+/* ── 3b. Pixel-Level Typography & Grid Alignment Across All 6 Pages ─────── */
+html body :is(.count-label, .badge, .palette-number, .collection-summary strong, .server-table td.num, .detail-grid dd, .tfx-ping-pill, .tfx-live-capsule-pct, .mod-meta, .catalog-meta) {
+  font-variant-numeric: tabular-nums;
+}
+
+html body .top-actions {
+  gap: 10px !important;
+  align-items: center;
+}
+html body .language-button {
+  height: 32px;
+  padding: 0 10px !important;
+  border-radius: var(--tfx-radius-round) !important;
+  transition: background-color 160ms ease, color 160ms ease !important;
+}
+html body .language-button:hover {
+  background: color-mix(in srgb, var(--raised) 80%, transparent);
+  color: var(--text);
+}
+html body .tfx-window-controls {
+  margin-left: 4px !important;
+  padding-left: 10px !important;
+}
+html body .tfx-window-button {
+  width: 32px !important;
+  height: 32px !important;
+}
+
+html body .launch-checklist li {
+  opacity: 0.72 !important;
+}
+html body .launch-checklist li.is-checked {
+  opacity: 1 !important;
+}
+
+/* Servers detail 2x2 spec hierarchy */
+html body .server-detail .detail-grid {
+  gap: 14px 12px !important;
+  margin: 16px 0 !important;
+}
+html body .server-detail .detail-grid dt {
+  opacity: 0.78;
+}
+html body .server-detail .detail-grid dd {
+  font-weight: 600;
+  margin-top: 3px !important;
+}
+
+/* Mods 10px crisp sub-captions, left/right baseline sync & Arsenal summary baseline */
+html body .collection-tab-caption {
+  font-size: 10px !important;
+  letter-spacing: 1.2px !important;
+  opacity: 0.72 !important;
+}
+html body .mods-editorial .mods-sidebar {
+  padding-top: 6px !important;
+}
+html body .collection-summary > div {
+  display: inline-flex !important;
+  align-items: baseline !important;
+  gap: 8px !important;
+}
+html body .collection-summary strong {
+  line-height: 1 !important;
+}
+
+/* Installer 1360x860 zero-clip + 2x2 capsule sample grid */
+html body .install-layout {
+  gap: 22px 24px !important;
+}
+html body .dropzone {
+  min-height: 192px !important;
+  padding: 20px !important;
+  gap: 14px !important;
+}
+html body .demo-files {
+  margin-top: 16px !important;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+html body .demo-files > p {
+  grid-column: 1 / -1;
+  margin-bottom: 2px !important;
+}
+html body .demo-file {
+  padding: 8px 10px !important;
+  border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  border-radius: var(--tfx-radius-control) !important;
+  background: color-mix(in srgb, var(--surface) 42%, transparent);
+  gap: 8px !important;
+  min-width: 0;
+}
+html body .demo-file:hover {
+  background: color-mix(in srgb, var(--raised) 72%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
+}
+html body .install-details {
+  min-height: 332px !important;
+}
+html body .history-row {
+  padding: 11px 0 !important;
+}
+
+/* EA Account 1360x860 clean vertical framing (zero bottom button/disclaimer clip) */
+html body .account-layout {
+  gap: 32px !important;
+}
+html body .account-card {
+  padding: 0 !important;
+}
+html body .account-card .panel-header,
+html body .ea-diagnostics-panel .panel-header {
+  margin-bottom: 10px !important;
+}
+html body .account-identity {
+  padding: 4px 0 12px !important;
+  gap: 16px !important;
+}
+html body .account-avatar {
+  width: 52px !important;
+  height: 52px !important;
+}
+html body .account-well {
+  padding: 12px 0 !important;
+  gap: 12px 16px !important;
+}
+html body .ea-saved-accounts {
+  margin-top: 10px !important;
+  padding-block: 8px 10px !important;
+}
+html body .account-card .setting-row {
+  padding: 12px 0 !important;
+  margin-top: 4px !important;
+}
+html body .ea-diagnostics-panel .diagnostic-row {
+  padding: 7px 0 !important;
+}
+html body .ea-diagnostics-panel .diagnostic-footer {
+  margin-top: 12px !important;
+}
+html body .ea-log-links {
+  margin-top: 10px !important;
+}
+html body .ea-diagnostic-time {
+  margin-top: 8px !important;
+}
+html body .ea-repair-note {
+  margin-top: 4px !important;
+}
+
+/* Settings vertical edge alignment */
+html body .settings-card {
+  padding: 14px !important;
+  gap: 12px !important;
+}
+html body .settings-scroll {
+  padding: 4px 8px 12px 0 !important;
+}
+html body .settings-save {
+  padding: 12px 14px !important;
+}
+
+/* ── 4. View Transitions API — Fingertip Radial Theme Wipe ──────────────── */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-old(root) {
+  z-index: 1;
+}
+::view-transition-new(root) {
+  z-index: 2;
+  animation: tfx-theme-reveal 440ms var(--tfx-ease-fluid) both;
+}
+@keyframes tfx-theme-reveal {
+  from { clip-path: circle(0px at var(--vt-x, 50%) var(--vt-y, 50%)); }
+  to { clip-path: circle(var(--vt-r, 150vmax) at var(--vt-x, 50%) var(--vt-y, 50%)); }
+}
+html.tfx-vt-active,
+html.tfx-vt-active *,
+html.tfx-vt-active *::before,
+html.tfx-vt-active *::after {
+  transition-duration: 0ms !important;
+}
+
+/* ── 5. Directional Spatial Transitions, 3-Tier Rim-Light Glass & Tooltip ─ */
+@keyframes tfx-page-from-bottom {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes tfx-page-from-top {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+#main.page-enter[data-nav-dir="down"] {
+  animation: tfx-page-from-bottom 220ms var(--tfx-ease-crisp) both !important;
+}
+#main.page-enter[data-nav-dir="up"] {
+  animation: tfx-page-from-top 220ms var(--tfx-ease-crisp) both !important;
+}
+
+html body .rail {
+  backdrop-filter: blur(22px) saturate(1.38);
+  -webkit-backdrop-filter: blur(22px) saturate(1.38);
+  box-shadow:
+    0 14px 36px -12px color-mix(in srgb, #000 32%, transparent),
+    0 2px 8px -2px color-mix(in srgb, #000 14%, transparent),
+    inset 0 1px 0 var(--tfx-rim-top),
+    inset 0 -1px 0 var(--tfx-rim-bottom) !important;
+}
+html body .launch-identity .segment,
+html body .title-choice,
+html body .toolbar .community-region {
+  box-shadow:
+    inset 0 1px 0 var(--tfx-rim-top),
+    inset 0 -1px 0 var(--tfx-rim-bottom) !important;
+}
+
+/* Suppress all sidebar rail hover/focus tooltips */
+html body .rail [data-tip]::after,
+html body .rail [data-tip]:hover::after,
+html body .rail [data-tip]:focus-visible::after {
+  content: none !important;
+  display: none !important;
+}
+
+html body .rail > .nav-active-indicator {
+  transition:
+    transform 260ms var(--tfx-ease-crisp),
+    width 220ms var(--tfx-ease-crisp),
+    height 220ms var(--tfx-ease-crisp),
+    opacity 150ms ease !important;
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #fff 32%, transparent),
+    inset 0 -1px 0 color-mix(in srgb, #000 12%, transparent) !important;
+}
+html body .rail > .nav-active-indicator.is-snapping {
+  transition: opacity 150ms ease !important;
+}
+html body .rail .nav-button {
+  transition:
+    color 180ms ease,
+    background-color 180ms ease,
+    transform 220ms var(--tfx-ease-spring) !important;
+}
+html body .rail .nav-button:not(.active):active {
+  transform: scale(0.92) !important;
+}
+html body .rail .nav-button .icon,
+html body .rail .nav-button .ea-mark {
+  transition: transform 240ms var(--tfx-ease-spring), color 180ms ease !important;
+}
+html body .rail .nav-button:not(.active):hover .icon,
+html body .rail .nav-button:not(.active):hover .ea-mark {
+  transform: translateY(-1.5px) scale(1.08) !important;
+}
+
+/* ── 6. Minimal Topbar Soft Touch Audio Toggle ──────────────────────────── */
+html body .tfx-sfx-toggle {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--tfx-radius-round) !important;
+  color: var(--muted);
+  transition: background-color 180ms ease, color 180ms ease, transform 200ms var(--tfx-ease-spring) !important;
+}
+html body .tfx-sfx-toggle:hover {
+  background: color-mix(in srgb, var(--raised) 80%, transparent);
+  color: var(--text);
+}
+html body .tfx-sfx-toggle[aria-pressed="true"] {
+  color: var(--accent);
+  background: var(--tfx-accent-soft);
+}
+html body .tfx-sfx-toggle:active {
+  transform: scale(0.9);
+}
+
+/* ── 7. Cross-Page Morphing Status Capsule (Dynamic Pill) ───────────────── */
+.tfx-live-capsule {
+  position: fixed;
+  top: 18px;
+  left: calc(50% + 42px);
+  transform: translate3d(-50%, -18px, 0) scale(0.92);
+  z-index: 95;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 36px;
+  padding: 0 14px 0 10px;
+  border-radius: var(--tfx-radius-round) !important;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line));
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: blur(22px) saturate(1.4);
+  -webkit-backdrop-filter: blur(22px) saturate(1.4);
+  color: var(--text);
+  font-size: 12px !important;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  box-shadow:
+    0 12px 32px -10px color-mix(in srgb, #000 34%, transparent),
+    inset 0 1px 0 var(--tfx-rim-top),
+    inset 0 -1px 0 var(--tfx-rim-bottom) !important;
+  transition:
+    opacity 220ms ease,
+    transform 340ms var(--tfx-ease-spring),
+    border-color 240ms ease !important;
+}
+.tfx-live-capsule.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate3d(-50%, 0, 0) scale(1);
+}
+.tfx-live-ring {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  display: grid;
+  place-items: center;
+}
+.tfx-live-ring svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+.tfx-live-ring .ring-track {
+  fill: none;
+  stroke: color-mix(in srgb, var(--line) 90%, transparent);
+  stroke-width: 2.2;
+}
+.tfx-live-ring .ring-fill {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  transform-origin: center;
+  transform: rotate(-90deg);
+  transition: stroke-dashoffset 280ms var(--tfx-ease-fluid);
+}
+.tfx-live-ring .ring-check {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 20;
+  stroke-dashoffset: 20;
+  transition: stroke-dashoffset 320ms var(--tfx-ease-fluid);
+}
+.tfx-live-capsule.is-done .ring-check {
+  stroke-dashoffset: 0;
+}
+.tfx-live-capsule.is-indeterminate .tfx-live-ring .ring-fill {
+  animation: tfx-live-ring-spin 0.92s linear infinite;
+}
+@keyframes tfx-live-ring-spin {
+  from { transform: rotate(-90deg); }
+  to { transform: rotate(270deg); }
+}
+.tfx-live-capsule-pct {
+  font-family: Consolas, ui-monospace, monospace !important;
+  font-size: 11px !important;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 8. Sonner-Style Depth-Stacked Translucent Capsule Toasts ───────────── */
+html body #toast-region {
+  gap: 0 !important;
+  pointer-events: auto !important;
+}
+html body #toast-region .toast {
+  border-radius: var(--tfx-radius-round) !important;
+  padding: 10px 18px !important;
+  background: color-mix(in srgb, var(--surface) 88%, transparent) !important;
+  backdrop-filter: blur(22px) saturate(1.35);
+  -webkit-backdrop-filter: blur(22px) saturate(1.35);
+  border: 1px solid color-mix(in srgb, var(--line) 85%, transparent) !important;
+  box-shadow:
+    0 14px 36px -12px color-mix(in srgb, #000 36%, transparent),
+    inset 0 1px 0 var(--tfx-rim-top),
+    inset 0 -1px 0 var(--tfx-rim-bottom) !important;
+  transition: transform 280ms var(--tfx-ease-spring), opacity 220ms ease, margin-top 260ms var(--tfx-ease-fluid) !important;
+  animation: tfx-toast-pop 280ms var(--tfx-ease-spring) both !important;
+}
+html body #toast-region .toast:not(:last-child) {
+  margin-bottom: -24px;
+  transform: scale(0.94);
+  opacity: 0.78;
+}
+html body #toast-region .toast:nth-last-child(n+3) {
+  margin-bottom: -28px;
+  transform: scale(0.88);
+  opacity: 0.52;
+}
+html body #toast-region:hover .toast {
+  margin-bottom: 8px !important;
+  transform: scale(1) !important;
+  opacity: 1 !important;
+}
+@keyframes tfx-toast-pop {
+  from { opacity: 0; transform: translateY(14px) scale(0.94); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ── 9. Organic Press, Magnetic Pull, Sheen, Layered Parallax & Action Spin ─ */
+html body .btn,
+html body .region-option,
+html body .theme-choice,
+html body .demo-file {
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease,
+    box-shadow 220ms ease,
+    transform 240ms var(--tfx-ease-spring) !important;
+}
+html body .btn:active:not(:disabled),
+html body .region-option:active {
+  transform: scale(0.975) !important;
+}
+
+@keyframes tfx-icon-spin-once {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+html body .tfx-icon-spin {
+  animation: tfx-icon-spin-once 520ms var(--tfx-ease-fluid) !important;
+}
+
+html body .tfx-magnetic {
+  --mag-x: 0px;
+  --mag-y: 0px;
+  transform: translate3d(var(--mag-x), var(--mag-y), 0);
+  will-change: transform;
+}
+html body .home-launch-editorial.play-stage .launch-button {
+  position: relative;
+  overflow: hidden;
+}
+html body .home-launch-editorial.play-stage .launch-button.tfx-magnetic:hover:not(:disabled) {
+  transform: translate3d(var(--mag-x), calc(var(--mag-y) - 1.5px), 0);
+}
+html body .home-launch-editorial.play-stage .launch-button.tfx-magnetic:active:not(:disabled) {
+  transform: translate3d(var(--mag-x), var(--mag-y), 0) scale(0.972) !important;
+}
+html body .home-launch-editorial.play-stage .launch-button::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(112deg, transparent 28%, color-mix(in srgb, #fff 28%, transparent) 50%, transparent 72%);
+  transform: translateX(-130%) skewX(-16deg);
+  transition: transform 640ms var(--tfx-ease-fluid);
+  pointer-events: none;
+}
+html body .home-launch-editorial.play-stage .launch-button:hover:not(:disabled)::before {
+  transform: translateX(130%) skewX(-16deg);
+}
+html body .home-launch-editorial.play-stage .launch-button .icon:last-child {
+  transition: transform 240ms var(--tfx-ease-spring);
+}
+html body .home-launch-editorial.play-stage .launch-button:hover:not(:disabled) .icon:last-child {
+  transform: translateX(3.5px);
+}
+
+html body .tfx-sheen {
+  position: relative;
+}
+html body .tfx-sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit !important;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(220px circle at var(--spot-x, 50%) var(--spot-y, 50%), color-mix(in srgb, var(--text) 8%, transparent), transparent 68%);
+  transition: opacity 240ms ease;
+}
+html body .tfx-sheen:hover::after {
+  opacity: 1;
+}
+
+html body .tfx-tilt {
+  --tilt-x: 0deg;
+  --tilt-y: 0deg;
+  --px: 0;
+  --py: 0;
+  transform-style: preserve-3d;
+  transform: perspective(820px) rotateX(var(--tilt-x)) rotateY(var(--tilt-y)) translateZ(0);
+}
+html body .tfx-tilt.is-tilting {
+  transition:
+    transform 65ms linear,
+    border-color 180ms ease,
+    box-shadow 220ms ease !important;
+}
+html body .theme-choice .palette-mini-rail,
+html body .theme-choice .palette-mini-label,
+html body .theme-choice .palette-mini-action,
+html body .theme-choice .palette-mini-indicators {
+  transition: transform 240ms var(--tfx-ease-fluid);
+  will-change: transform;
+}
+html body .theme-choice.is-tilting .palette-mini-rail,
+html body .theme-choice.is-tilting .palette-mini-label,
+html body .theme-choice.is-tilting .palette-mini-action,
+html body .theme-choice.is-tilting .palette-mini-indicators {
+  transition: transform 65ms linear;
+}
+html body .theme-choice .palette-mini-rail {
+  transform: translate3d(calc(var(--px) * 3.5px), calc(var(--py) * 2.5px), 0);
+}
+html body .theme-choice .palette-mini-label {
+  transform: translate3d(calc(var(--px) * 5px), calc(var(--py) * 3.5px), 0);
+}
+html body .theme-choice .palette-mini-action {
+  transform: translate3d(calc(var(--px) * 7.5px), calc(var(--py) * 5px), 0);
+}
+html body .theme-choice .palette-mini-indicators {
+  transform: translate3d(calc(var(--px) * 6px), calc(var(--py) * 4px), 0);
+}
+
+.tfx-ripple-host {
+  position: relative;
+  overflow: hidden;
+}
+.tfx-ripple {
+  position: absolute;
+  left: var(--rx, 50%);
+  top: var(--ry, 50%);
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
+  margin-top: -6px;
+  border-radius: var(--tfx-radius-round) !important;
+  pointer-events: none;
+  z-index: 4;
+  background: radial-gradient(circle, color-mix(in srgb, currentColor 24%, transparent) 0%, color-mix(in srgb, currentColor 8%, transparent) 58%, transparent 74%);
+  transform: scale(0);
+  opacity: 0.85;
+  animation: tfx-ripple-burst 440ms var(--tfx-ease-out) forwards;
+}
+@keyframes tfx-ripple-burst {
+  0% { transform: scale(0); opacity: 0.78; }
+  100% { transform: scale(var(--rscale, 18)); opacity: 0; }
+}
+
+/* ── 10. Copy-Path Pill, Server Ping Capsule & Fluid Numerals ───────────── */
+html body .home-path .path {
+  cursor: pointer;
+  padding: 2px 7px;
+  margin-left: -7px;
+  border-radius: var(--tfx-radius-control) !important;
+  transition: background-color 160ms ease, color 160ms ease !important;
+}
+html body .home-path .path:hover {
+  background: color-mix(in srgb, var(--raised) 75%, transparent);
+  color: var(--text);
+}
+html body .home-path.is-copied > .icon {
+  color: var(--accent) !important;
+  animation: tfx-check-pop 320ms var(--tfx-ease-spring);
+}
+
+.tfx-ping-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border-radius: var(--tfx-radius-round) !important;
+  background: color-mix(in srgb, var(--raised) 72%, transparent);
+  font-variant-numeric: tabular-nums;
+}
+.tfx-ping-pill::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: var(--tfx-radius-round) !important;
+  background: var(--muted);
+  flex: none;
+}
+.tfx-ping-pill.is-good::before {
+  background: var(--green);
+}
+.tfx-ping-pill.is-mid::before {
+  background: var(--warning);
+}
+
+@keyframes tfx-title-glide {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+html body .launch-display.tfx-title-enter > span {
+  animation: tfx-title-glide 280ms var(--tfx-ease-crisp) both;
+}
+html body .launch-display.tfx-title-enter > span + span {
+  animation-delay: 44ms;
+}
+
+.tfx-roll-num {
+  display: inline-block;
+  position: relative;
+  overflow: hidden;
+  vertical-align: bottom;
+}
+@keyframes tfx-roll-up {
+  from { opacity: 0.15; transform: translateY(55%); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes tfx-roll-down {
+  from { opacity: 0.15; transform: translateY(-55%); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.tfx-roll-up {
+  display: inline-block;
+  animation: tfx-roll-up 260ms var(--tfx-ease-fluid) both;
+}
+.tfx-roll-down {
+  display: inline-block;
+  animation: tfx-roll-down 260ms var(--tfx-ease-fluid) both;
+}
+
+/* ── 11. Elastic Toggle, Row Wash, Server & Dropzone Magnetism ──────────── */
+@keyframes tfx-toggle-squeeze {
+  0% { transform: scale(1, 1); }
+  36% { transform: scale(1.09, 0.9); }
+  74% { transform: scale(0.98, 1.02); }
+  100% { transform: scale(1, 1); }
+}
+html body button.toggle.tfx-toggle-pop {
+  animation: tfx-toggle-squeeze 280ms var(--tfx-ease-spring);
+}
+@keyframes tfx-row-wash {
+  0% { background-color: var(--tfx-accent-soft); }
+  100% { background-color: transparent; }
+}
+html body .tfx-row-pulse {
+  animation: tfx-row-wash 440ms var(--tfx-ease-fluid);
+}
+@keyframes tfx-check-pop {
+  0% { transform: scale(0.76); opacity: 0.45; }
+  58% { transform: scale(1.12); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+html body .launch-checklist li.is-checked .icon {
+  animation: tfx-check-pop 320ms var(--tfx-ease-spring) both;
+}
+@keyframes tfx-detail-swap {
+  from { opacity: 0.2; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+html body .server-detail.tfx-detail-arrive {
+  animation: tfx-detail-swap 210ms var(--tfx-ease-crisp) both;
+}
+html body .search .icon {
+  transition: transform 220ms var(--tfx-ease-spring), color 180ms ease;
+}
+html body .search:focus-within .icon {
+  color: var(--accent) !important;
+  transform: scale(1.1) rotate(-6deg);
+}
+
+html body .dropzone .upload-icon {
+  transform: translate3d(var(--drop-x, 0px), var(--drop-y, 0px), 0);
+  transition: transform 220ms var(--tfx-ease-spring), color 180ms ease !important;
+}
+html body .dropzone.dragover .upload-icon {
+  transform: translate3d(var(--drop-x, 0px), calc(var(--drop-y, 0px) - 5px), 0) scale(1.06);
+}
+@keyframes tfx-receipt-step {
+  from { opacity: 0; transform: translateY(7px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+html body #install-details.tfx-receipt-arrive > * {
+  animation: tfx-receipt-step 260ms var(--tfx-ease-crisp) both;
+}
+html body #install-details.tfx-receipt-arrive > *:nth-child(2) { animation-delay: 35ms; }
+html body #install-details.tfx-receipt-arrive > *:nth-child(3) { animation-delay: 70ms; }
+html body #install-details.tfx-receipt-arrive > *:nth-child(4) { animation-delay: 105ms; }
+
+/* ── 12. Native Discrete Dialog Enter/Exit & Arsenal Skin Scrubber ──────── */
+html body dialog {
+  opacity: 0;
+  transform: translateY(-6px) scale(0.972);
+  box-shadow:
+    0 24px 70px -16px color-mix(in srgb, #000 42%, transparent),
+    inset 0 1px 0 var(--tfx-rim-top),
+    inset 0 -1px 0 var(--tfx-rim-bottom) !important;
+  transition:
+    opacity 190ms ease,
+    transform 230ms var(--tfx-ease-crisp),
+    overlay 230ms allow-discrete,
+    display 230ms allow-discrete !important;
+  animation: none !important;
+}
+html body dialog[open] {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+@starting-style {
+  html body dialog[open] {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.964);
+  }
+}
+html body dialog::backdrop {
+  opacity: 0;
+  transition:
+    opacity 200ms ease,
+    overlay 200ms allow-discrete,
+    display 200ms allow-discrete !important;
+  animation: none !important;
+}
+html body dialog[open]::backdrop {
+  opacity: 1;
+}
+@starting-style {
+  html body dialog[open]::backdrop {
+    opacity: 0;
+  }
+}
+
+html body .arsenal-weapon {
+  border-radius: var(--tfx-radius-control) !important;
+  padding-inline: 10px !important;
+  transition: background-color 160ms ease, color 160ms ease, transform 200ms var(--tfx-ease-spring) !important;
+}
+html body .arsenal-weapon:hover {
+  background: color-mix(in srgb, var(--raised) 65%, transparent);
+}
+html body .arsenal-weapon.active {
+  background: var(--tfx-accent-soft);
+}
+html body .arsenal-records.tfx-arsenal-arrive {
+  animation: tfx-detail-swap 210ms var(--tfx-ease-crisp) both;
+}
+
+.tfx-skin-compare {
+  --split: 52%;
+  position: relative;
+  height: 146px;
+  margin: 14px 0 12px;
+  border-radius: var(--tfx-radius-well) !important;
+  border: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+  background: color-mix(in srgb, var(--surface) 58%, transparent);
+  backdrop-filter: blur(16px) saturate(1.3);
+  -webkit-backdrop-filter: blur(16px) saturate(1.3);
+  box-shadow:
+    inset 0 1px 0 var(--tfx-rim-top),
+    inset 0 -1px 0 var(--tfx-rim-bottom) !important;
+  overflow: hidden;
+  user-select: none;
+  touch-action: none;
+  cursor: ew-resize;
+}
+.tfx-skin-layer {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 18px 28px;
+  pointer-events: none;
+}
+.tfx-skin-layer svg {
+  width: min(360px, 84%);
+  height: auto;
+  max-height: 106px;
+  display: block;
+}
+.tfx-skin-layer.is-before {
+  color: color-mix(in srgb, var(--muted) 72%, transparent);
+}
+.tfx-skin-layer.is-after {
+  clip-path: inset(0 0 0 var(--split));
+  background:
+    radial-gradient(ellipse 64% 80% at 72% 48%, color-mix(in srgb, var(--action) 20%, transparent), transparent 72%),
+    radial-gradient(ellipse 46% 65% at 32% 62%, color-mix(in srgb, var(--secondary) 18%, transparent), transparent 74%);
+  color: var(--text);
+}
+.tfx-skin-layer.is-after .skin-accent-part {
+  fill: var(--action);
+}
+.tfx-skin-layer.is-after .skin-secondary-part {
+  fill: var(--secondary);
+}
+.tfx-skin-layer.is-before .skin-accent-part,
+.tfx-skin-layer.is-before .skin-secondary-part {
+  fill: currentColor;
+  opacity: 0.42;
+}
+.tfx-skin-tag {
+  position: absolute;
+  bottom: 10px;
+  z-index: 3;
+  padding: 3px 9px;
+  border-radius: var(--tfx-radius-round) !important;
+  background: color-mix(in srgb, var(--bg) 74%, transparent);
+  border: 1px solid color-mix(in srgb, var(--line) 75%, transparent);
+  backdrop-filter: blur(10px);
+  font-size: 10px !important;
+  color: var(--muted);
+  pointer-events: none;
+}
+.tfx-skin-tag.left { left: 12px; }
+.tfx-skin-tag.right {
+  right: 12px;
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--line));
+}
+.tfx-skin-divider {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--split);
+  width: 1px;
+  background: color-mix(in srgb, var(--text) 34%, transparent);
+  pointer-events: none;
+  z-index: 4;
+}
+.tfx-skin-handle {
+  position: absolute;
+  top: 50%;
+  left: var(--split);
+  transform: translate(-50%, -50%);
+  z-index: 5;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--tfx-radius-round) !important;
+  border: 1px solid color-mix(in srgb, var(--line) 90%, transparent);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(14px);
+  color: var(--text);
+  display: grid;
+  place-items: center;
+  box-shadow:
+    0 6px 18px -4px color-mix(in srgb, #000 34%, transparent),
+    inset 0 1px 0 var(--tfx-rim-top) !important;
+  transition: transform 180ms var(--tfx-ease-spring), border-color 160ms ease !important;
+}
+.tfx-skin-compare:hover .tfx-skin-handle,
+.tfx-skin-compare.is-dragging .tfx-skin-handle {
+  border-color: var(--accent);
+  transform: translate(-50%, -50%) scale(1.09);
+}
+.tfx-skin-handle svg {
+  width: 13px;
+  height: 13px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ── 13. Demo-Only Subtle Judge Whisper Capsule ─────────────────────────── */
+.tfx-demo-whisper {
+  position: fixed;
+  left: calc(50% + 42px);
+  bottom: 10px;
+  transform: translateX(-50%);
+  z-index: 85;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px 4px 12px;
+  border-radius: var(--tfx-radius-round) !important;
+  border: 1px solid color-mix(in srgb, var(--line) 85%, transparent);
+  background: color-mix(in srgb, var(--surface) 84%, transparent);
+  backdrop-filter: blur(20px) saturate(1.35);
+  -webkit-backdrop-filter: blur(20px) saturate(1.35);
+  box-shadow:
+    0 10px 28px -10px color-mix(in srgb, #000 30%, transparent),
+    inset 0 1px 0 var(--tfx-rim-top),
+    inset 0 -1px 0 var(--tfx-rim-bottom) !important;
+  font-size: 11px !important;
+  color: var(--muted);
+  animation: tfx-whisper-in 380ms var(--tfx-ease-spring) 420ms both;
+}
+@keyframes tfx-whisper-in {
+  from { opacity: 0; transform: translate3d(-50%, 12px, 0) scale(0.95); }
+  to { opacity: 1; transform: translate3d(-50%, 0, 0) scale(1); }
+}
+.tfx-demo-whisper > button {
+  padding: 4px 10px;
+  border-radius: var(--tfx-radius-round) !important;
+  font-size: 11px !important;
+  color: var(--text);
+  background: color-mix(in srgb, var(--raised) 76%, transparent);
+  transition: background-color 160ms ease, color 160ms ease, transform 180ms var(--tfx-ease-spring) !important;
+}
+.tfx-demo-whisper > button:hover {
+  background: var(--tfx-accent-soft);
+  color: var(--accent);
+}
+.tfx-demo-whisper > button:active {
+  transform: scale(0.94);
+}
+.tfx-demo-whisper > button.tfx-whisper-close {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  color: var(--muted);
+}
+.tfx-demo-whisper > button.tfx-whisper-close:hover {
+  background: color-mix(in srgb, var(--raised) 85%, transparent);
+  color: var(--text);
+}
+
+html body:has(.tfx-demo-whisper) #toast-region {
+  bottom: 58px !important;
+}
+
+/* ── 13b. Concentric Border-Radius & Shadow Clipping Restoration ────────── */
+/* Counteracts the legacy `* { border-radius: 0 !important }` reset on all   */
+/* pill badges, sliding indicators, media thumbnails, dropdowns & avatars.   */
+html body .home-bottom .count-label,
+html body .home-v2 .home-bottom .count-label {
+  border-radius: var(--tfx-radius-round) !important;
+  padding: 3px 9px !important;
+}
+html body .launch-progress-track,
+html body .launch-progress-track i,
+html body .progress > div {
+  border-radius: var(--tfx-radius-round) !important;
+}
+html body .spring-choice-clip {
+  border-radius: inherit !important;
+  overflow: hidden !important;
+}
+html body .arsenal-filters {
+  border-radius: var(--tfx-radius-well) !important;
+  padding: 3px !important;
+}
+html body .arsenal-filters button,
+html body .arsenal-filters .hover-track-indicator {
+  border-radius: var(--tfx-radius-control) !important;
+}
+html body .mods-editorial .arsenal-row::before {
+  border-radius: var(--tfx-radius-round) !important;
+}
+html body .mods-editorial .arsenal-row[data-record-state="current"],
+html body .mods-editorial .arsenal-confirm {
+  border-radius: var(--tfx-radius-control) !important;
+}
+html body .catalog-art,
+html body .server-banner {
+  border-radius: var(--tfx-radius-control) !important;
+  overflow: hidden !important;
+}
+html body .favorite,
+html body .history-arrival,
+html body .sort-menu button,
+html body .ea-account-option {
+  border-radius: var(--tfx-radius-control) !important;
+}
+html body .server-selection-marker {
+  border-radius: var(--tfx-radius-round) !important;
+}
+html body .sort-menu,
+html body select::picker(select) {
+  border-radius: var(--tfx-radius-well) !important;
+}
+html body .install-editorial .upload-icon {
+  border-radius: var(--tfx-radius-round) !important;
+}
+html body .account-avatar img {
+  border-radius: inherit !important;
+}
+
+/* ── 14. Responsive Narrow Viewport & Bottom Capsule Dock Alignment ─────── */
+@media (max-width: 640px) {
+  .tfx-live-capsule {
+    left: 50%;
+    top: 12px;
+    max-width: calc(100vw - 28px);
+  }
+  .tfx-demo-whisper {
+    display: none;
+  }
+  html body #toast-region {
+    left: 50% !important;
+    bottom: 90px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html body .app,
+  html body:has(dialog[open]) .app {
+    transform: none !important;
+    opacity: 1 !important;
+    transition: none !important;
+  }
+  html body dialog,
+  html body dialog::backdrop {
+    transition: none !important;
+  }
+  .tfx-ambient-mesh > span,
+  ::view-transition-old(root),
+  ::view-transition-new(root),
+  #main.page-enter,
+  html body .launch-display.tfx-title-enter > span,
+  html body .launch-checklist li.is-checked .icon,
+  html body button.toggle.tfx-toggle-pop,
+  html body .tfx-row-pulse,
+  html body .tfx-ripple,
+  html body .tfx-icon-spin,
+  html body .server-detail.tfx-detail-arrive,
+  html body .arsenal-records.tfx-arsenal-arrive,
+  html body #install-details.tfx-receipt-arrive > *,
+  .tfx-roll-up,
+  .tfx-roll-down,
+  .tfx-demo-whisper {
+    animation: none !important;
+  }
+  html body .launch-button::before {
+    display: none !important;
+  }
+  html body .tfx-magnetic,
+  html body .tfx-tilt,
+  html body .theme-choice .palette-mini-rail,
+  html body .theme-choice .palette-mini-label,
+  html body .theme-choice .palette-mini-action,
+  html body .theme-choice .palette-mini-indicators,
+  html body .dropzone .upload-icon {
+    transform: none !important;
+  }
+}

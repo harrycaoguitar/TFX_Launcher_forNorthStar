@@ -11,7 +11,13 @@ const external = value => value.replace(/app\.asar([\\/])/,"app.asar.unpacked$1"
 const dataRoot = fs.existsSync("D:/") ? "D:/TFX-Launcher-Data/northstar-clients" : path.join(app.getPath("userData"),"northstar-clients");
 function send(channel,payload) {try {win().send(channel,payload);} catch (_) {}}
 let activeRegion = null, singleton;
-const cache = new ClientBundleCache({sourceRoot:external(path.join(__dirname,"../tools/clients")),toolsDir:external(path.join(__dirname,"../tools/vtf")),cacheRoot:path.join(dataRoot,"bundles"),validateURL:(...args)=>require("./releases").isClientAssetURL(...args),progress:payload=>send("ns-update-event",{key:"cli.update.downloading",progress:payload.percent,btn_text:payload.percent+"%"})});
+const cache = new ClientBundleCache({sourceRoot:external(path.join(__dirname,"../tools/clients")),toolsDir:external(path.join(__dirname,"../tools/vtf")),cacheRoot:path.join(dataRoot,"bundles"),validateURL:(...args)=>require("./releases").isClientAssetURL(...args),releaseProvider:defaultRelease,progress:payload=>send("ns-update-event",{key:"cli.update.downloading",progress:payload.percent,btn_text:payload.percent+"%"})});
+async function defaultRelease(region) {
+  if(region!=="cn")return require("./releases").latest.northstar({region,force:true});
+  const manifest=validateManifest(await metadata(path.join(cache.sourceRoot,region,"manifest.json")),region), source=manifest.source;
+  if(!source || source.release?.replace(/^v/,"")!==manifest.version.replace(/^v/,"") || !require("./releases").isClientAssetURL(source.url,source.release,undefined,region) || new URL(source.url).hostname!=="github.com" || !/^[a-f0-9]{64}$/.test(source.sha256))throw Error("国服北极星 GitHub 默认下载来源无效");
+  return {region,version:source.release,download_link:source.url,digest:source.sha256,source:"GitHub"};
+}
 function engine() {
   if (!singleton) singleton = createClientSwitcher({bundleRoot:cache.sourceRoot,stateRoot:path.join(dataRoot,"transactions"),bundleProvider:channel=>cache.descriptor(channel),processCheck:()=>require("./is_running").snapshot(),progress:payload=>send("northstar-client-progress",{...payload,region:payload.channel||activeRegion,phase:payload.phase==="recovering"?"checking":payload.phase})});
   return singleton;
@@ -74,7 +80,7 @@ async function targetVersion(region,info,conf,explicitRoot) {
     await cache.safeCachePath(candidatePath);
     const candidate=validateManifest(await metadata(candidatePath),region);
     if(crypto.createHash("sha256").update(JSON.stringify(candidate)).digest("hex")!==ref.directory)throw Error("北极星更新缓存索引无效");
-    manifest=candidate;
+    if(region!=="cn"||require("./releases").compareVersions(candidate.version,manifest.version)===0)manifest=candidate;
   }
   let version=manifest.version;
   const snapshot=info?.backupRoot&&path.join(info.backupRoot,"channel-cache",region,"manifest.json");
@@ -127,7 +133,7 @@ async function ensure({conf=settings(),gameRoot,directory,repair=false,allowInst
     progress({region,phase:"checking",percent:0});
     await guardSelection();
     const args={...context(conf,region,gameRoot),channel:region,repair:repair===true,allowInstall:allowInstall===true,refresh:refresh===true,refreshClient:Boolean(directory)};
-    const switcher=directory||guard||onProgress?createClientSwitcher({bundleRoot:cache.sourceRoot,stateRoot:path.join(dataRoot,"transactions"),bundleProvider:async channel=>directory&&channel===region?{directory,preferSnapshot:false}:cache.descriptor(channel),processCheck:async()=>{await guardSelection();const snapshot=await require("./is_running").snapshot();await guardSelection();return snapshot;},progress}):engine();
+    const switcher=directory||guard||onProgress?createClientSwitcher({bundleRoot:cache.sourceRoot,stateRoot:path.join(dataRoot,"transactions"),bundleProvider:async channel=>directory&&channel===region?{directory,preferSnapshot:false}:cache.descriptor(channel),processCheck:async()=>{await guardSelection();const snapshot=await require("./is_running").snapshot({maxAgeMs:1500});await guardSelection();return snapshot;},progress}):engine();
     const result=await switcher.ensure(args);await switcher.assertReady(args);
     ipcMain.emit("get-version");ipcMain.emit("gui-getmods");return result;
   } catch(error) {

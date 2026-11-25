@@ -2,13 +2,14 @@
 
 const fs = require("fs"), path = require("path"), crypto = require("crypto");
 const state = require("./mod-enabled-state");
+const {OFFICIAL_PROFILE} = require("./northstar-region");
 const {StringDecoder} = require("string_decoder");
 const CORE = Object.freeze(["Northstar.Client", "Northstar.Custom", "Northstar.CustomServers"]);
 const fail = message => Object.assign(Error(message), {code:"OFFICIAL_MOD_NOT_READY"});
 
 // One captured launch mode owns its loader switches. Profile/network switches
 // from a community launch must never turn the clean EA choice into Northstar.
-function argumentsFor(input, {mods = false, profile = "R2Northstar"} = {}) {
+function argumentsFor(input, {mods = false, profile = OFFICIAL_PROFILE} = {}) {
   const result = [];
   for (let i = 0; i < input.length; i++) {
     const argument = input[i];

@@ -13,6 +13,8 @@ function fixture(options={}) {
   ids.officialClientProgress.track=new Element();
   const choices=[new Element('',{vanillaMods:'false'}),new Element('',{vanillaMods:'true'})],mode=new Element('',{mode:'northstar'}),northstarPlay=new Element('playNsBtn');
   const listeners=new Map(),windowEvents=new Map(),calls=[],toasts=[],win={addEventListener:(name,fn)=>windowEvents.set(name,fn),dispatchEvent(){},VyraClient:{busy:false,renderAction(){}},VyraLocales:{messages:{}}};
+  win.VyraLaunchAvailability=require('../src/app/js/launch-availability');
+  win.VyraGameProcesses={snapshot:{ok:true,processes:[]}};
   const document={getElementById:id=>ids[id],querySelectorAll:selector=>selector==='[data-vanilla-mods]'?choices:selector==='[data-mode]'?[mode]:selector.startsWith('[data-toast-key')?[]:[...choices,mode,northstarPlay,ids.playTfBtn]};
   const context={window:win,document,settings:{gamepath:'D:/game',vanillaModsEnabled:false,modProfileServer:'official',...options.settings},gameDirectoryReady:true,is_running:false,launchPending:false,ipcRenderer:{on:(name,fn)=>listeners.set(name,fn),invoke:async(channel,input)=>{calls.push({channel,input});return options.respond?options.respond(channel,input):{installed:false,state:'missing'};}},I18n:{t:(key,args={})=>key+(args.version?' '+args.version:''),text:value=>value},lang:key=>key==='gui.launch'?'Play':'Running',dismissToast(){},Toast:class{constructor(value){toasts.push(value);}},CustomEvent:class{},setpath(){calls.push({channel:'setpath'});}};
   const settingsApi={saving:false,modStateError:(_code,fallback)=>fallback,savePatch:async patch=>{calls.push({channel:'settings-save',input:patch});context.settings={...context.settings,...patch};return {ok:true,settings:context.settings};}};
@@ -25,14 +27,13 @@ test('official clean mode launches without checking or installing Vanilla+ and d
   const f=fixture();let launched=0;f.api.activate(()=>launched++);
   assert.equal(launched,1);assert.equal(f.calls.length,0);assert.equal(f.choices[0].attributes['aria-pressed'],'true');assert.equal(f.ids.officialClientState.textContent,'official.cleanHint');
 });
-test('with-Mod choice is persisted with official Mod context; missing Vanilla+ installs without launching',async()=>{
+test('with-Mod choice persists the official context and launches after verified installation',async()=>{
   let installed=false;
   const f=fixture({respond:async channel=>channel==='vanilla-client-install'?(installed=true,{ok:true,status:{installed:true,version:'2.5.1'}}):{installed,version:installed?'2.5.1':undefined,state:installed?'installed':'missing'}});
   await f.api.choose(true);await flush();
   assert.deepEqual(JSON.parse(JSON.stringify(f.calls[0])),{channel:'settings-save',input:{vanillaModsEnabled:true,modProfileServer:'official'}});
   assert.equal(f.ids.playTfBtn.textContent,'official.install');let launched=0;f.api.activate(()=>launched++);await flush();
-  assert.equal(launched,0);assert.ok(f.calls.some(call=>call.channel==='vanilla-client-install'));assert.equal(f.ids.playTfBtn.textContent,'Play');assert.equal(f.toasts.at(-1).title,'official.complete');
-  f.api.activate(()=>launched++);assert.equal(launched,1);
+  assert.equal(launched,1);assert.ok(f.calls.some(call=>call.channel==='vanilla-client-install'));assert.equal(f.ids.playTfBtn.textContent,'Play');assert.equal(f.toasts.at(-1).title,'official.complete');
 });
 test('failed mode preference keeps original selection and does not install anything',async()=>{
   const f=fixture();f.context.Settings.savePatch=async()=>({ok:false,code:'GAME_RUNNING'});
@@ -78,8 +79,8 @@ test('a normal settings-save acknowledgement invalidates profile status even wit
 test('damaged Vanilla+ is repaired; a game or a pending launch blocks changing modes',async()=>{
   let repaired=false;const f=fixture({settings:{vanillaModsEnabled:true},respond:async(channel,input)=>channel==='vanilla-client-install'?(repaired=input.repair,{ok:false,error:'repair failure'}):{installed:true,state:'damaged'}});
   await flush();assert.equal(f.ids.playTfBtn.textContent,'official.repair');f.api.activate(()=>assert.fail('must not launch damaged'));await flush();assert.equal(repaired,true);
-  f.context.is_running=true;await f.api.choose(false);assert.equal(f.api.state.enabled,true);
-  f.context.is_running=false;f.context.launchPending=true;await f.api.choose(false);assert.equal(f.api.state.enabled,true);
+  f.context.window.VyraGameProcesses.snapshot.processes=[{image:'Titanfall2.exe',executablePath:'D:/game/Titanfall2.exe'}];await f.api.choose(false);assert.equal(f.api.state.enabled,true);
+  f.context.window.VyraGameProcesses.snapshot.processes=[];f.context.launchPending=true;await f.api.choose(false);assert.equal(f.api.state.enabled,true);
 });
 test('official selectors use the app control family and all new copy has five-language coverage',()=>{
   const html=fs.readFileSync(path.join(root,'src/app/index.html'),'utf8');

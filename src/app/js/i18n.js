@@ -12,9 +12,11 @@
     return 'en-US';
   };
   const catalog = window.VyraLocales || {pairs:[]};
+  const extension = window.TFXLocaleConfig || {};
+  if(extension.pairs) catalog.pairs.push(...extension.pairs);
   const forward = new Map(catalog.pairs);
   const reverse = new Map(catalog.pairs.map(([zh,en]) => [en,zh]));
-  const extraLocales=new Map(['zh-TW','de-DE','fr-FR'].map(locale=>[locale,fold.loadLocale?.(locale)||{}]));
+  const extraLocales=new Map(['zh-TW','de-DE','fr-FR'].map(locale=>[locale,{...(fold.loadLocale?.(locale)||{}),...extension.strings?.[locale]}]));
   const englishKeys=new Set([...extraLocales.values()].flatMap(dictionary=>Object.keys(dictionary)));
   const localizedReverse=new Map(),localizedPatterns=new Map(),reversePatterns=[];
   function templateMatcher(template) {
@@ -54,6 +56,10 @@
       if(/^(?:Current theme: |Previewing )|, (?:light|dark) theme$/u.test(text)) {
         for(const name of Object.keys(match.groups||{}))match.groups[name]=localizeEnglish(match.groups[name],locale);
       }
+      for(const token of ['{status}','{sort}']) {
+        const index=pattern.tokens.indexOf(token);
+        if(index>=0)match.groups['p'+index]=translated(match.groups['p'+index],locale);
+      }
       return fillTemplate(pattern.replacement,match,pattern.tokens);
     }
     // Translate known diagnostic prefixes independently of filenames and error
@@ -63,9 +69,18 @@
     return text;
   }
   const sources = new WeakMap();
+  const textCache = new Map();
+  const cachedText = value => {
+    const key=current+'\0'+value;
+    if(textCache.has(key))return textCache.get(key);
+    const result=translated(value);
+    if(textCache.size>=4096)textCache.clear();
+    textCache.set(key,result);
+    return result;
+  };
   const attributeSources = new WeakMap();
-  const attributes = ['title','placeholder','aria-label'];
-  const ignored = 'script,style,textarea,[data-i18n-ignore],#nsRelease,#vpReleaseNotes,#settingsGamePath,#settingsGlobalGamePath,#ddsPackageName,#vtfPackageName,#ddsFileList strong,#vtfFileList strong,#browserEntries .description,#browserEntries .name,#browserEntries .title,#modsdiv .el .name,#modsdiv .el .title,#modsdiv .el .description,#uiLanguage option';
+  const attributes = ['title','placeholder','aria-label','aria-valuetext','data-tip'];
+  const ignored = (extension.ignored ? extension.ignored+',' : '') + 'script,style,textarea,[data-i18n-ignore],#nsRelease,#vpReleaseNotes,#settingsGamePath,#settingsGlobalGamePath,#ddsPackageName,#vtfPackageName,#ddsFileList strong,#vtfFileList strong,#browserEntries .description,#browserEntries .name,#browserEntries .title,#modsdiv .el .name,#modsdiv .el .title,#modsdiv .el .description,#uiLanguage option';
   let current = normalize(fold.loadSettings().data.uiLanguage);
   let pending = 0;
   const changedRoots = new Set();
@@ -89,6 +104,7 @@
     [new RegExp("^正在修复 (.+)$","u"),"Repairing $1"],
     [new RegExp("^(.+) 已修复并校验$","u"),"$1 repaired and verified"],
     [new RegExp("^修复 (.+) 需要约 (.+) MB 可用空间，请先释放游戏所在磁盘的空间。$","u"),"Repairing $1 requires about $2 MB of free space. Free up space on the game drive first."],
+    ...(extension.patterns || []),
     ...(catalog.skinSwitchPatterns || []),
     ...(catalog.clientSwitchPatterns || []),
     [/^皮肤层级元数据无效：(.+)$/u,'Invalid skin resolution metadata: $1'],
@@ -175,7 +191,10 @@
     const previous = sources.get(node);
     const value = node.nodeValue;
     const source = previous && (value === previous.output || value === previous.source) ? previous.source : value;
-    const output = source.includes('%%') ? source.replace(/%%([^%]+)%%/g,(_match,key)=>t(key)) : translated(source);
+    // An option without a value derives it from its label. Freeze that data
+    // before translating, so changing the language never changes a filter.
+    if(node.parentElement.matches('option:not([value])'))node.parentElement.value=node.parentElement.textContent;
+    const output = source.includes('%%') ? source.replace(/%%([^%]+)%%/g,(_match,key)=>t(key)) : cachedText(source);
     sources.set(node,{source,output});
     if (value !== output) node.nodeValue = output;
   }
@@ -202,7 +221,7 @@
             const value=element.getAttribute(name); if(value === null) continue;
             const old=record[name];
             const source=old && (value===old.output || value===old.source) ? old.source : value;
-            const output=source.includes('%%') ? source.replace(/%%([^%]+)%%/g,(_match,key)=>t(key)) : translated(source);
+            const output=source.includes('%%') ? source.replace(/%%([^%]+)%%/g,(_match,key)=>t(key)) : cachedText(source);
             record[name]={source,output}; if(value!==output) element.setAttribute(name,output);
           }
         }
@@ -218,11 +237,11 @@
       if(record.type==='childList') for(const node of record.addedNodes) changedRoots.add(node);
       else changedRoots.add(record.target);
     }
-    if(pending) return;
+    if(!changedRoots.size || pending) return;
     pending=requestAnimationFrame(()=>{
       pending=0;
       const roots=[...changedRoots];changedRoots.clear();
-      for(const root of roots) if(root.isConnected) apply(root);
+      for(const root of roots) if(root.isConnected && !roots.some(parent=>parent!==root && parent.nodeType===Node.ELEMENT_NODE && parent.contains(root))) apply(root);
     });
   });
   function preview(value) {
@@ -240,5 +259,5 @@
   window.I18n=Object.freeze({normalize,t,text:translated,apply,preview,commit:preview,load,cancel:load,get current(){return current;},get locale(){return current;}});
   preview(current);
   window.addEventListener('DOMContentLoaded',()=>apply());
-  ipcRenderer.on('changed-settings',(_event,value)=>{if(value && Object.prototype.hasOwnProperty.call(value,'uiLanguage') && (typeof settings!=='object' || value.uiLanguage!==settings.uiLanguage)) preview(value.uiLanguage);});
+  if(!extension.manualSettings) ipcRenderer.on('changed-settings',(_event,value)=>{if(value && Object.prototype.hasOwnProperty.call(value,'uiLanguage') && (typeof settings!=='object' || value.uiLanguage!==settings.uiLanguage)) preview(value.uiLanguage);});
 })();

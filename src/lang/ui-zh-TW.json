@@ -1,6 +1,15 @@
 {
   "locale": "zh-TW",
   "strings": {
+    "No Icepick Mod imported. Drop an archive or complete folder containing a valid mod.json for automatic detection and installation.": "尚未匯入 Icepick Mod。拖入含有效 mod.json 的壓縮檔或完整資料夾，即可自動辨識並安裝。",
+    "Installed in the Icepick folder. Enable, disable and remove mods in the Icepick manager under My Mods.": "已安裝到 Icepick 資料夾。請在「我的模組」的 Icepick 管理區啟用、停用或移除模組。",
+    "Mod installer": "模組安裝",
+    "Import Mods and skins": "匯入 Mod 和外觀",
+    "Supports Icepick, Northstar Mods, DDS and VTF. Drop a package to detect and install it automatically.": "支援 Icepick、Northstar Mod、DDS 和 VTF。拖入套件即可自動辨識並安裝。",
+    "Icepick · Northstar Mod · DDS · VTF · ZIP · 7Z · RAR · folders": "Icepick · Northstar Mod · DDS · VTF · ZIP · 7Z · RAR · 資料夾",
+    "Drop files for automatic detection and installation": "拖入檔案即可自動辨識並安裝",
+    "Drop Icepick or Northstar Mods, DDS, VTF, or a complete folder.": "拖入 Icepick 或 Northstar Mod、DDS、VTF，或完整資料夾。",
+    "Ready for files": "等待匯入檔案",
     "EA emulator": "EA 模擬器",
     "Save your changes before leaving?": "儲存設定後再離開？",
     "You have unsaved changes. Save them before leaving, discard them, or keep editing.": "還有未儲存的變更。你可以儲存後離開、放棄變更，或繼續編輯。",

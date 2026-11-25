@@ -34,19 +34,20 @@ function homeFixture(server='official') {
   const buttons=['northstar','vanilla'].map(mode=>{const element=new Element();element.dataset.mode=mode;return element;});
   const doc={body:node('body'),activeElement:node('active'),hidden:false,getElementById:node,createElement:()=>new Element(),createElementNS:()=>new Element(),addEventListener(){},querySelector(selector){return selector==='.popup.shown'?null:node(selector);},querySelectorAll(selector){return selector==='[data-mode]'?buttons:[];}};
   const window={Settings:null,addEventListener(name,callback){windowListeners.set(name,callback);},dispatchEvent(event){windowListeners.get(event.type)?.(event);},VyraMotion:{changePage(_old,_new,change){change();}}};
-  const Settings={saving:false,toggle(){},canLeave(){return !Settings.saving&&!node('options').classList.contains('shown');},savePatch:async()=>assert.fail('no preference write expected')};window.Settings=Settings;
+  window.VyraLaunchAvailability=require('../src/app/js/launch-availability');
+  const Settings={saving:false,toggle(){},canLeave(){return !Settings.saving&&!node('options').classList.contains('shown');},savePatch:async patch=>{Object.assign(scope.settings,patch);return {ok:true,settings:{...scope.settings}};}};window.Settings=Settings;
   const scope={window,document:doc,Settings,settings:{gamepath:'D:/game',modProfileServer:server,northstarRegion:server==='global'?'global':'cn'},page:index=>pages.push(index),launchPending:false,is_running:false,ipcRenderer:{on(name,callback){if(!ipcListeners.has(name))ipcListeners.set(name,[]);ipcListeners.get(name).push(callback);}},popups:{set_all(){}},events:{on(name,callback){if(!eventListeners.has(name))eventListeners.set(name,[]);eventListeners.get(name).push(callback);}},setInterval(){return 1;},clearInterval(){},requestAnimationFrame(){},queueMicrotask,CustomEvent:class {constructor(type,options){this.type=type;Object.assign(this,options);}},Intl,Date,console};
   vm.createContext(scope);vm.runInContext(fs.readFileSync(path.join(app,'js/neo.js'),'utf8'),scope);
   return {scope,window,Settings,node,buttons,pages,emitWindow:name=>windowListeners.get(name)?.(),emitIPC:(name,value)=>{for(const listener of ipcListeners.get(name)||[])listener({},value);},closeSettings(){node('options').classList.remove('shown');for(const listener of eventListeners.get('popup-changed')||[])listener({popup:node('options'),new_state:false});}};
 }
 test('restoring defaults keeps Preferences open and reconciles official home with Northstar when closed',async()=>{
-  const f=homeFixture();assert.equal(f.pages.at(-1),2);f.node('options').classList.add('shown');f.Settings.saving=true;
+  const f=homeFixture();await Promise.resolve();assert.equal(f.pages.at(-1),2);f.node('options').classList.add('shown');f.Settings.saving=true;
   f.scope.settings.modProfileServer='cn';f.emitIPC('changed-settings',{modProfileServer:'cn'});f.emitWindow('vyra-settings-restored');
   assert.equal(f.window.Fold.mode,'northstar');assert.equal(f.pages.at(-1),2);assert.equal(f.node('options').classList.contains('shown'),true);
   f.Settings.saving=false;f.closeSettings();await Promise.resolve();assert.equal(f.pages.at(-1),1);assert.equal(f.buttons[0].attributes['aria-pressed'],'true');
 });
 test('an official context committed while saving reaches the official home after closing Preferences',async()=>{
-  const f=homeFixture('global');assert.equal(f.pages.at(-1),1);f.node('options').classList.add('shown');f.Settings.saving=true;
+  const f=homeFixture('global');await Promise.resolve();assert.equal(f.pages.at(-1),1);f.node('options').classList.add('shown');f.Settings.saving=true;
   f.scope.settings.modProfileServer='official';f.emitIPC('changed-settings',{modProfileServer:'official'});f.emitWindow('tfx-settings-persisted');
   assert.equal(f.window.Fold.mode,'vanilla');assert.equal(f.pages.at(-1),1);f.Settings.saving=false;f.closeSettings();await Promise.resolve();
   assert.equal(f.pages.at(-1),2);assert.equal(f.buttons[1].attributes['aria-pressed'],'true');

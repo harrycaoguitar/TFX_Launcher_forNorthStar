@@ -23,7 +23,7 @@ function northstar(conf=settings()) {
   return versions.every(value=>value===versions[0])?"v"+versions[0]:"unknown";
 }
 function titanfall(conf=settings()) {
-  let root;try{root=gameRoots.resolveGameRoot(conf,{gameVersion:"northstar",region:network.normalize(conf.northstarRegion)});}catch(_){return "unknown";}
+  let root;try{root=gameRoots.resolveGameRoot(conf,{gameVersion:"vanilla"});}catch(_){return "unknown";}
   const filename=path.join(root,"gameversion.txt");
   try{return regularFile(filename,4096)?fs.readFileSync(filename,"utf8").trim()||"unknown":"unknown";}catch(_){return "unknown";}
 }

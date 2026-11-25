@@ -2,6 +2,7 @@
   "appId": "community.tfx.launcher",
   "electronVersion": "43.1.1",
   "productName": "TFX Launcher",
+  "electronLanguages": ["en-US", "zh-CN", "zh-TW", "de", "fr"],
   "executableName": "TFX-Launcher",
   "directories": {
     "output": "dist",
@@ -34,6 +35,14 @@
     "package.json",
     "LICENSE",
     "THIRD_PARTY_NOTICES.md",
-    "!test/**/*"
+    "!test/**/*",
+    "!src/tools/clients/**/payload.zip",
+    "!src/app/index.html",
+    "!src/assets/bg/tf1.jpg",
+    "!src/app/css/**/*",
+    "!src/app/fonts/**/*",
+    "!src/app/icons/**/*",
+    "!src/modules/r1delta.js",
+    "!src/tools/vtf/7za.exe"
   ]
 }

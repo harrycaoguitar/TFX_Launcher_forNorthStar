@@ -8,7 +8,7 @@ const readyLog = CORE.map(name => loaded(name,false)).join("") + loaded("Vanilla
 async function fixture(t) {
   const home = await fsp.mkdtemp(path.join(os.tmpdir(),"tfx-official-launch-")), game = path.join(home,"Titanfall2"), journalRoot = path.join(home,"journals");
   await fsp.mkdir(game); t.after(() => fsp.rm(home,{recursive:true,force:true}));
-  const marker = path.join(game,"run_northstar.txt"), store = path.join(journalRoot,crypto.createHash("sha256").update(game.toLowerCase()).digest("hex").slice(0,24));
+  const realGame = await fsp.realpath(game), marker = path.join(game,"run_northstar.txt"), store = path.join(journalRoot,crypto.createHash("sha256").update(realGame.toLowerCase()).digest("hex").slice(0,24));
   return {home,game,marker,journalRoot,store,journal:path.join(store,"journal.json"),manager:createCleanMarker({journalRoot})};
 }
 test("clean official args remove all loader, profile and Northstar network switches without dropping unrelated settings", () => {
@@ -20,7 +20,7 @@ test("clean official args remove all loader, profile and Northstar network switc
 test("official Mod args have exactly the captured profile and mandatory flags", () => {
   const output = argumentsFor(["-northstar","-vanilla","-profile=old","+ns_masterserver_hostname","https://cn.invalid","-novid"],{mods:true,profile:"Custom Profile/Official"});
   assert.deepEqual(output,["-novid","-northstar","-vanilla","-profile=Custom Profile/Official"]);
-  assert.deepEqual(argumentsFor([],{mods:true}),["-northstar","-vanilla","-profile=R2Northstar"]);
+  assert.deepEqual(argumentsFor([],{mods:true}),["-northstar","-vanilla","-profile=R2Titanfall"]);
 });
 test("invalid or escaping official Mod profile paths fail rather than enabling an unexpected profile", () => {
   for (const profile of ["",".","..","../other","safe/../other","/absolute","double//segment","trailing/","bad\nprofile",'bad"quote']) {

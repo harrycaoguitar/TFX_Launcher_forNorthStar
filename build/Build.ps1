@@ -1,12 +1,16 @@
 ﻿param(
   [string]$RuntimeDir,
-  [string]$OutputRoot = (Join-Path $PSScriptRoot '..\dist')
+  [string]$OutputRoot = (Join-Path $PSScriptRoot '..\dist'),
+  [switch]$Portable
 )
 $ErrorActionPreference = 'Stop'
 $sourceRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $OutputRoot = [IO.Path]::GetFullPath($OutputRoot)
 $package = Get-Content -LiteralPath (Join-Path $sourceRoot 'package.json') -Encoding UTF8 -Raw | ConvertFrom-Json
 $version = $package.version
+$versionMatch = [regex]::Match($version, '^(?<major>0|[1-9]\d*)\.(?<minor>0|[1-9]\d*)\.(?<patch>0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?$')
+if (!$versionMatch.Success) { throw "Invalid semantic version: $version" }
+$fileVersion = "{0}.{1}.{2}.0" -f $versionMatch.Groups['major'].Value,$versionMatch.Groups['minor'].Value,$versionMatch.Groups['patch'].Value
 $node = (Get-Command node -ErrorAction Stop).Source
 if (!$RuntimeDir) { $RuntimeDir = Join-Path $sourceRoot 'node_modules\electron\dist' }
 $RuntimeDir = [IO.Path]::GetFullPath($RuntimeDir)
@@ -23,12 +27,31 @@ $appDir = Join-Path $OutputRoot "TFX-Launcher-$version"
 $stage = Join-Path $OutputRoot 'app-source'
 if ((Test-Path -LiteralPath $appDir) -or (Test-Path -LiteralPath $stage)) { throw 'Output already exists. Select a fresh -OutputRoot.' }
 New-Item -ItemType Directory -Path $appDir,$stage | Out-Null
-Get-ChildItem -LiteralPath $RuntimeDir -Force | Where-Object { $_.Name -notin @('resources','debug.log','测试说明.txt','修复说明.txt') } | Copy-Item -Destination $appDir -Recurse
+$runtimeFiles = @('chrome_100_percent.pak','chrome_200_percent.pak','d3dcompiler_47.dll','ffmpeg.dll','icudtl.dat','libEGL.dll','libGLESv2.dll','LICENSE.electron.txt','LICENSES.chromium.html','resources.pak','snapshot_blob.bin','v8_context_snapshot.bin')
+foreach ($file in $runtimeFiles) { Copy-Item -LiteralPath (Join-Path $RuntimeDir $file) -Destination $appDir }
+Copy-Item -LiteralPath $runtimeExe -Destination (Join-Path $appDir 'TFX-Launcher.exe')
+$localesDir = Join-Path $appDir 'locales'
+New-Item -ItemType Directory -Path $localesDir | Out-Null
+foreach ($locale in @('en-US','zh-CN','zh-TW','de','fr')) {
+  Copy-Item -LiteralPath (Join-Path $RuntimeDir "locales\$locale.pak") -Destination $localesDir
+}
 $appExe = Join-Path $appDir 'TFX-Launcher.exe'
-if (Test-Path -LiteralPath (Join-Path $appDir 'electron.exe')) { Rename-Item -LiteralPath (Join-Path $appDir 'electron.exe') -NewName 'TFX-Launcher.exe' }
 New-Item -ItemType Directory -Path (Join-Path $appDir 'resources') | Out-Null
-Copy-Item -LiteralPath (Join-Path $sourceRoot 'src') -Destination $stage -Recurse
-Copy-Item -LiteralPath (Join-Path $sourceRoot 'package.json') -Destination $stage
+$builder = Get-Content -LiteralPath (Join-Path $sourceRoot 'build.config.json') -Encoding UTF8 -Raw | ConvertFrom-Json
+$exclude = @($builder.files | Where-Object { $_.StartsWith('!src/') } | ForEach-Object { $_.Substring(1).Replace('/**/*','/*').Replace('**','*') })
+$activeLegacyJs = @('src/app/js/locales.js','src/app/js/feature-copy.js','src/app/js/official-errors.js','src/app/js/i18n.js')
+Get-ChildItem -LiteralPath (Join-Path $sourceRoot 'src') -File -Recurse | ForEach-Object {
+  $relative = $_.FullName.Substring($sourceRoot.Length + 1).Replace('\','/')
+  $deadLegacyJs = $relative.StartsWith('src/app/js/') -and ($activeLegacyJs -notcontains $relative)
+  if (!$deadLegacyJs -and !($exclude | Where-Object { $relative -like $_ })) {
+    $destination = Join-Path $stage $relative
+    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $destination) | Out-Null
+    Copy-Item -LiteralPath $_.FullName -Destination $destination
+  }
+}
+foreach ($file in @('package.json','LICENSE','THIRD_PARTY_NOTICES.md')) {
+  Copy-Item -LiteralPath (Join-Path $sourceRoot $file) -Destination $stage
+}
 # Only production dependencies belong in the shipped application.
 $visited = @{}
 function Copy-ProductionModule([string]$name) {
@@ -46,8 +69,26 @@ $package.dependencies.PSObject.Properties.Name | ForEach-Object { Copy-Productio
 $asarCLI = Join-Path $sourceRoot 'build-tools\asar\node_modules\@electron\asar\bin\asar.mjs'
 & $node $asarCLI pack $stage (Join-Path $appDir 'resources\app.asar') --unpack-dir 'src/tools'
 if ($LASTEXITCODE -ne 0) { throw 'ASAR packaging failed.' }
-& (Join-Path $sourceRoot 'build-tools\rcedit-x64.exe') $appExe --set-file-version "$version.0" --set-product-version "$version.0" --set-version-string ProductName 'TFX Launcher' --set-version-string FileDescription 'TFX Launcher' --set-icon (Join-Path $sourceRoot 'src\assets\icons\icon.ico')
+& (Join-Path $sourceRoot 'build-tools\rcedit-x64.exe') $appExe --set-file-version "$fileVersion" --set-product-version "$fileVersion" --set-version-string ProductName 'TFX Launcher' --set-version-string FileDescription "TFX Launcher $version" --set-version-string FileVersion "$version" --set-version-string ProductVersion "$version" --set-icon (Join-Path $sourceRoot 'src\assets\icons\icon.ico')
 if ($LASTEXITCODE -ne 0) { throw 'Executable version update failed.' }
+if ($Portable) {
+  $zip = Join-Path $OutputRoot "TFX-Launcher-$version-Portable.zip"
+  $archiveTool = Join-Path $sourceRoot 'src\tools\vtf\7z.exe'
+  $compact = Join-Path $OutputRoot "TFX-Launcher-$version-Portable.7z"
+  Push-Location -LiteralPath $OutputRoot
+  try {
+    & $archiveTool a -tzip -mx=7 -mmt=2 -bd -bso0 $zip (Split-Path -Leaf $appDir)
+    if ($LASTEXITCODE -ne 0) { throw 'Portable ZIP creation failed.' }
+    & $archiveTool a -t7z -mx=7 -mmt=2 -bd -bso0 $compact (Split-Path -Leaf $appDir)
+    if ($LASTEXITCODE -ne 0) { throw 'Compact portable archive creation failed.' }
+    foreach ($artifact in @($zip,$compact)) {
+      & $archiveTool t -bd -bso0 $artifact
+      if ($LASTEXITCODE -ne 0) { throw "Archive verification failed: $artifact" }
+    }
+  } finally { Pop-Location }
+  Get-Item -LiteralPath $zip,$compact | Select-Object FullName,Length
+  return
+}
 # Explicit owned-file manifest: uninstall does not recursively delete user-added files.
 $manifest = @()
 Get-ChildItem -LiteralPath $appDir -File -Recurse | Sort-Object FullName | ForEach-Object {
@@ -61,7 +102,7 @@ Get-ChildItem -LiteralPath $appDir -Directory -Recurse | Sort-Object { $_.FullNa
 $manifestPath = Join-Path $OutputRoot 'uninstall-files.nsh'
 [IO.File]::WriteAllLines($manifestPath,$manifest,[Text.UTF8Encoding]::new($true))
 $setup = Join-Path $OutputRoot "TFX-Launcher-$version-Setup.exe"
-& (Join-Path $sourceRoot 'build-tools\nsis\Bin\makensis.exe') /V3 /INPUTCHARSET UTF8 "/DAPP_DIR=$appDir" "/DOUT_FILE=$setup" "/DVERSION=$version" "/DUNINSTALL_MANIFEST=$manifestPath" (Join-Path $PSScriptRoot 'Installer.nsi')
+& (Join-Path $sourceRoot 'build-tools\nsis\Bin\makensis.exe') /V3 /INPUTCHARSET UTF8 "/DAPP_DIR=$appDir" "/DOUT_FILE=$setup" "/DVERSION=$version" "/DFILEVERSION=$fileVersion" "/DUNINSTALL_MANIFEST=$manifestPath" (Join-Path $PSScriptRoot 'Installer.nsi')
 if ($LASTEXITCODE -ne 0) { throw 'Installer compilation failed.' }
 Get-Item -LiteralPath $setup | Select-Object FullName,Length
 Get-FileHash -LiteralPath $setup -Algorithm SHA256

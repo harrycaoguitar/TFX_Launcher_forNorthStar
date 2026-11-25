@@ -8,7 +8,9 @@ const lang = require("../lang");
 const console = require("./console");
 const json = require("./json");
 const normalize = value => require("../preferences").normalize(value, lang.defaultLocale);
+const {defaultId: defaultPalette} = require("../app/prototype/palettes");
 const preferenceDefaults = Object.freeze({
+	prototypeTheme: defaultPalette,
 	theme: "aurora", uiLanguage: lang.defaultLocale || "zh-CN", modSort: "added", exitAfterLaunch: false,
 	northstarRegion: "cn", modProfileServer: "cn", vanillaModsEnabled: false, independentServerMods: false, nsupdate: true, originkill: false, nsargs: "-multiple",
 	excludes: ["ns_startup_args.txt", "ns_startup_args_dedi.txt"]
@@ -37,6 +39,7 @@ var settings = {
 	globalGamepath: "",
 	chinaSourceGamepath: "",
 	chinaInstallTarget: "",
+	prototypeTheme: defaultPalette,
 	theme: "aurora",
 	uiLanguage: lang.defaultLocale || "zh-CN",
 	modSort: "added",
@@ -140,7 +143,7 @@ let saveDirect = (obj = {}, notify_renderer = true) => {
 function settingsFailure(error) {return {ok: false, error: error.message || String(error), ...(error.code ? {code: error.code} : {}), settings: {...settings}};}
 function requiresTransition(previous, next) {
 	return previous.northstarRegion !== next.northstarRegion || previous.modProfileServer !== next.modProfileServer || previous.vanillaModsEnabled !== next.vanillaModsEnabled || previous.independentServerMods !== next.independentServerMods ||
-		(previous.independentServerMods || next.independentServerMods) && (previous.gamepath !== next.gamepath || previous.nsargs !== next.nsargs);
+		(previous.independentServerMods || next.independentServerMods) && (previous.gamepath !== next.gamepath || previous.globalGamepath !== next.globalGamepath || previous.nsargs !== next.nsargs);
 }
 let savingContext = false;
 async function saveAsync(obj = {}, notify_renderer = true) {
@@ -149,13 +152,21 @@ async function saveAsync(obj = {}, notify_renderer = true) {
 	if (Object.prototype.hasOwnProperty.call(obj, "northstarRegion") && !Object.prototype.hasOwnProperty.call(obj, "modProfileServer")) obj = {...obj, modProfileServer: obj.northstarRegion === "global" ? "global" : "cn"};
 	const previous = {...settings}, next = normalize({...settings, ...obj});
 	if (!requiresTransition(previous, next)) return saveDirect(obj, notify_renderer);
+	// When independent per-server Mod profiles are off before and after, switching
+	// region or official mode touches no game directory or enabledmods.json on disk.
+	// Commit directly without spawning a PowerShell process query.
+	if (!previous.independentServerMods && !next.independentServerMods) {
+		const result = saveDirect(obj, false);
+		try {win().send("changed-settings", obj);} catch (_) {}
+		return result;
+	}
 	if (savingContext) throw Object.assign(Error("Another server selection is being saved. Please retry."), {code: "busy"});
 	savingContext = true;
 	try {
 		const gate = require("./dds-operation-gate"), mods = require("./mods"), packages = require("./packages");
 		if (gate.busy || mods.sharedImportBusy || mods.isImportBusy() || packages.activeCount > 0) throw Object.assign(Error("An installation or launch is in progress. Finish it before changing server Mod settings."), {code: "busy"});
 		return await gate.run("server-mod-settings", async () => {
-			const stopped = await require("./is_running").snapshot();
+			const stopped = await require("./is_running").snapshot({maxAgeMs: 3000});
 			if (!stopped?.ok) throw Object.assign(Error("Unable to check whether the game is running. Please retry."), {code: "PROCESS_QUERY"});
 			const rootTools = require("./game-roots");
 			for (const gameRoot of rootTools.serverTransitionRoots(previous, next)) {
@@ -184,7 +195,7 @@ function normalize_mod_sort(value) {
 
 // sets `key` in `settings` to `value`
 let set = (key, value) => {
-	if (["northstarRegion", "modProfileServer", "vanillaModsEnabled", "independentServerMods"].includes(key) || settings.independentServerMods && ["gamepath", "nsargs"].includes(key)) throw Error("Use settings.saveAsync to change the selected server or independent Mod profile.");
+	if (["northstarRegion", "modProfileServer", "vanillaModsEnabled", "independentServerMods"].includes(key) || settings.independentServerMods && ["gamepath", "globalGamepath", "nsargs"].includes(key)) throw Error("Use settings.saveAsync to change the selected server or independent Mod profile.");
 	settings[key] = value;
 }
 

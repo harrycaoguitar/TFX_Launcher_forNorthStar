@@ -25,6 +25,7 @@ else app.quit();
 
 function boot() {
 let mainWindow;
+const logger = require("./modules/logger").install({...require("electron"),version:launcherVersion()});
 app.on("second-instance", () => {
 	if (!mainWindow || mainWindow.isDestroyed()) return;
 	if (mainWindow.isMinimized()) mainWindow.restore();
@@ -124,6 +125,7 @@ function start() {
 
 	// makes sending things to the renderer a little more readable
 	win.send = (channel, data) => {
+		if (["launch-status","launch-diagnostic","unknown-error","failed-mod","gamepath-error","ns-update-event"].includes(channel)) logger.write(channel === "unknown-error" || data?.state === "failed" ? "ERROR" : "INFO", channel, data);
 		if (!win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send(channel, data);
 	};
 
@@ -153,7 +155,7 @@ function start() {
 	// Start Chromium and its local document while Node loads the services below.
 	// Registrations remain synchronous in this turn: renderer IPC cannot be
 	// delivered until every launch guard and recovery service is installed.
-	win.loadFile(path.join(__dirname, "app/index.html"), {
+	win.loadFile(path.join(__dirname, "app/prototype/index.html"), {
 		userAgent: "TFX/" + launcherVersion(),
 	})
 	require("./modules/mods");
@@ -164,6 +166,10 @@ function start() {
 	require("./modules/ea-account").register();
 	require("./modules/ea-diagnostics").register();
 	require("./modules/icepick").register();
+	const deltaElectron = require("electron");
+	const deltaCore = require("./modules/r1delta-core").register();
+	require("./modules/r1delta-addons").register(deltaElectron, deltaCore);
+	require("./modules/r1delta-servers").register(deltaElectron, deltaCore);
 	require("./modules/gamepath");
 	require("./modules/system_dns");
 	require("./modules/launch");
@@ -192,8 +198,6 @@ function start() {
 		if (!settings().gamepath) win.send("mods", {all: [], enabled: [], disabled: []});
 	});
 
-	// Only game-component updates are supported. The launcher no longer
-	// derives an update feed from the original upstream GitHub repository.
 	// The validated directory flow starts Northstar auto-update after acceptance.
 }
 

@@ -13,10 +13,11 @@ function validPath(value) {
  return candidate && findgame.validateGamePath(candidate) ? candidate : false;
 }
 function validGlobalPath(value) {
- const candidate = validPath(value);
- if (!candidate) return false;
- const china = validPath(settings().gamepath);
- return china && findgame.sameGamePath(candidate, china) ? false : candidate;
+ return validPath(value);
+}
+function ensureRegionalRootsMayShare(left, right) {
+ if (!left || !right || findgame.sameGamePath(left, right)) return;
+ dualInstall.ensureDisjoint(left, right);
 }
 gamepath.exists = folder => Boolean(validPath(folder === undefined ? settings().gamepath : folder));
 gamepath.has_perms = folder => {
@@ -41,7 +42,7 @@ function publishGlobal(window, selected, source, checking=false) {
  });
 }
 async function accept(window, folder, source, baseSource) {
- if (settings().globalGamepath) dualInstall.ensureDisjoint(folder, settings().globalGamepath);
+ if (settings().globalGamepath) ensureRegionalRootsMayShare(folder, settings().globalGamepath);
  const currentRoot = validPath(settings().gamepath), savedSource = validPath(settings().chinaSourceGamepath);
  const sourceRoot = validPath(baseSource) || (savedSource && currentRoot && findgame.sameGamePath(folder, currentRoot) ? savedSource : folder);
  await settings().save({gamepath:folder, chinaSourceGamepath:sourceRoot, chinaInstallTarget:"", zip:path.join(folder,"northstar.zip")});
@@ -54,7 +55,7 @@ async function accept(window, folder, source, baseSource) {
  await gamepath.setGlobal(window, false);
 }
 async function acceptGlobal(window, folder, source, ready=true) {
- if (settings().gamepath) dualInstall.ensureDisjoint(settings().gamepath, folder);
+ if (settings().gamepath) ensureRegionalRootsMayShare(settings().gamepath, folder);
  if (settings().chinaInstallTarget) dualInstall.ensureDisjoint(settings().chinaInstallTarget, folder);
  await settings().save({globalGamepath:folder});
  window.send("globalpath-status", {path:folder, valid:ready, selected:true, installable:!ready, checking:false, source});
@@ -144,7 +145,7 @@ gamepath.set = async (window, forceDialog=false) => {
     continue;
    }
    if (settings().globalGamepath) {
-    try {dualInstall.ensureDisjoint(selected, settings().globalGamepath);}
+     try {ensureRegionalRootsMayShare(selected, settings().globalGamepath);}
     catch (error) {await window.alert("国服和国际服不能使用同一个目录。"); continue;}
    }
    const source = validPath(saved) || validPath(settings().chinaSourceGamepath);
@@ -194,13 +195,13 @@ gamepath.setGlobal = async (window, forceDialog=true) => {
    }
    if (saved) {
     if (settings().chinaInstallTarget) dualInstall.ensureDisjoint(settings().chinaInstallTarget, saved);
-    const savedTarget = await dualInstall.inspectInstallTarget({sourceRoot:source, targetRoot:saved});
+     const savedTarget = await dualInstall.inspectInstallTarget({sourceRoot:source, targetRoot:saved, allowSame:true});
     await acceptGlobal(window, savedTarget.root, "saved", savedTarget.ready);
     return savedTarget.root;
    }
    if (savedPath) {
     try {
-     const pending = await dualInstall.inspectInstallTarget({sourceRoot:source, targetRoot:savedPath});
+     const pending = await dualInstall.inspectInstallTarget({sourceRoot:source, targetRoot:savedPath, allowSame:true});
      if (pending.installable) {
       await acceptGlobal(window, pending.root, "saved-target", false);
       return pending.root;
@@ -216,7 +217,7 @@ gamepath.setGlobal = async (window, forceDialog=true) => {
    const detected = findgame.selectGlobalGamePath(await findgame.findGames(), settings().gamepath);
    if (detected) {
     if (settings().chinaInstallTarget) dualInstall.ensureDisjoint(settings().chinaInstallTarget, detected);
-    const target = await dualInstall.inspectInstallTarget({sourceRoot:source, targetRoot:detected});
+     const target = await dualInstall.inspectInstallTarget({sourceRoot:source, targetRoot:detected, allowSame:true});
     await acceptGlobal(window, target.root, "automatic", target.ready);
     return target.root;
    }
@@ -243,7 +244,7 @@ gamepath.setGlobal = async (window, forceDialog=true) => {
    const source = validPath(settings().gamepath);
    try {
     if (settings().chinaInstallTarget) dualInstall.ensureDisjoint(settings().chinaInstallTarget, existing || picked);
-    const target = await dualInstall.inspectInstallTarget({sourceRoot:source, targetRoot:existing || picked});
+     const target = await dualInstall.inspectInstallTarget({sourceRoot:source, targetRoot:existing || picked, allowSame:true});
     if (existing && !validGlobalPath(existing)) throw Object.assign(Error("国际服必须使用与国服不同的游戏目录。"), {code:"GLOBAL_TARGET_OVERLAPS_SOURCE"});
     selected = target.root;
     await acceptGlobal(window, selected, "manual", target.ready);
@@ -274,5 +275,5 @@ setInterval(async () => {
   return;
  }
  if (!lost) {lost=true; publish(win(),settings().gamepath,"unavailable"); win().send("gamepath-lost");}
-},15000);
+},15000).unref?.();
 module.exports = gamepath;

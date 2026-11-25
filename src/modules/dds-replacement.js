@@ -3,6 +3,7 @@ const fs = require("fs");
 const fsp = fs.promises;
 const path = require("path");
 const {readRecord}=require('./backup-records');
+const {sameRoot}=require('./game-roots');
 
 const TARGETS = new Set(["pc_stream.starpak", "pc_stream(03).starpak", "pc_stream(05).starpak", "pc_stream(06).starpak", "pc_stream(07).starpak"]);
 const MAP_TYPES = Object.freeze(["ao", "col", "gls", "ilm", "nml", "spc", "cav", "opa"]);
@@ -52,7 +53,7 @@ async function readJournals(baseDir, gamePath) {
       throw Error(`DDS 备份记录无法读取：${entry.name}。请保留备份并先修复记录`);
     }
     if (typeof manifest.gamePath !== "string" || !path.isAbsolute(manifest.gamePath)) throw Error(`DDS 备份游戏目录无效：${entry.name}`);
-    if (gameKey(manifest.gamePath) !== gameKey(gamePath)) continue;
+    if (!sameRoot(manifest.gamePath, gamePath)) continue;
     if (manifest.id !== entry.name || manifest.version !== 1 || typeof manifest.createdAt !== "string" ||
         !Number.isFinite(Date.parse(manifest.createdAt)) || !Array.isArray(manifest.records) ||
         !JOURNAL_STATES.has(manifest.state) || manifest.records.length > 3000 ||

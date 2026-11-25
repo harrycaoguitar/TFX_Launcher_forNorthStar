@@ -19,13 +19,14 @@ const downloadRequest = createRequest(net);
 
 function selection() {
 	const conf = settings();
+	const server = require("./server-mod-profiles").selectedServer(conf);
 	let gamePath;
-	try {gamePath = require("./game-roots").gameRootForServer(conf, require("./server-mod-profiles").selectedServer(conf));}
+	try {gamePath = require("./game-roots").gameRootForServer(conf, server);}
 	catch (error) {throw Object.assign(new Error(error.message), {code: error.code || "GAME_PATH"});}
 	const launcher = path.join(gamePath, "NorthstarLauncher.exe");
 	let launcherStat; try {launcherStat = fs.lstatSync(launcher);} catch (_) {}
 	if (!launcherStat?.isFile() || launcherStat.isSymbolicLink()) throw Object.assign(new Error("Install the selected Northstar client from the Play page before installing mods."), {code: "CLIENT_MISSING"});
-	return {gamePath: path.resolve(gamePath), profileDirectory: region.resolveProfile(gamePath, splitArguments(conf.nsargs || "")), region: require("./server-mod-profiles").selectedServer(conf), independentServerMods: conf.independentServerMods === true};
+	return {gamePath: path.resolve(gamePath), profileDirectory: region.resolveProfile(gamePath, splitArguments(conf.nsargs || ""), server === "official" ? region.OFFICIAL_PROFILE : undefined), region: server, independentServerMods: conf.independentServerMods === true};
 }
 function profilePath() {
 	return selection().profileDirectory;

@@ -4,7 +4,7 @@ const test=require("node:test"),assert=require("node:assert/strict"),fs=require(
 const {EventEmitter}=require("events");
 const source=fs.readFileSync(path.join(__dirname,"../src/modules/mods.js"),"utf8"),root=fs.mkdtempSync(path.join(os.tmpdir(), "tfx-mods-state-"));
 function fixture(states={},nsargs=""){
-  const base=fs.mkdtempSync(path.join(root,"case-")),gamepath=path.join(base,"game"),userData=path.join(base,"data");fs.mkdirSync(gamepath);fs.mkdirSync(userData);fs.writeFileSync(path.join(gamepath,"NorthstarLauncher.exe"),"fixture");
+  const base=fs.mkdtempSync(path.join(root,"case-")),gamepath=path.join(base,"game"),userData=path.join(base,"data");fs.mkdirSync(gamepath);fs.mkdirSync(userData);fs.writeFileSync(path.join(gamepath,"NorthstarLauncher.exe"),"fixture");fs.writeFileSync(path.join(gamepath,"Titanfall2.exe"),"fixture");
   const profile=path.join(gamepath,nsargs?"Custom Profile":"R2Northstar"),file=path.join(profile,"enabledmods.json");fs.mkdirSync(profile,{recursive:true});fs.writeFileSync(file,JSON.stringify(states));
   const put=(name,version="1.0",folder=name,pack)=>{const dest=path.join(profile,pack?"packages":"mods",...(pack?[pack,"mods"]:[]),folder,"mod.json");fs.mkdirSync(path.dirname(dest),{recursive:true});fs.writeFileSync(dest,JSON.stringify({Name:name,Version:version}));if(pack)fs.writeFileSync(path.join(profile,"packages",pack,"manifest.json"),JSON.stringify({name:"Package",version_number:"9.0"}));return dest;};
   for(const name of adapter.CORE_NAMES)put(name,"1.18.0");put("Personal.Off");put("Personal.On");
@@ -12,7 +12,8 @@ function fixture(states={},nsargs=""){
   const app=new EventEmitter();app.getPath=()=>userData;let gateBusy=false;
   const gate={get busy(){return gateBusy;},async run(_label,action){if(gateBusy)throw Error("Operation already active");gateBusy=true;try{return await action();}finally{gateBusy=false;}}};
   const modules={"fs-extra":fakefs,"./dds-operation-gate":gate,"./is_running":{snapshot:async()=>({ok:true,processes:[]})},"./local-mod-import":{importLocalMod:noop,messages:{}},electron:{app,ipcMain:{on:noop,handle:noop},dialog:{}},"./json":p=>{try{return JSON.parse(fs.readFileSync(p));}catch(_){return false;}},"./update":{northstar:{updating:false}},"./version":{northstar:()=>"1.18.0"},"./settings":()=>settings,"./mod-added-times":require("../src/modules/mod-added-times"),"./mod-enabled-state":adapter,"./server-mod-profiles":require("../src/modules/server-mod-profiles"),"./northstar-region":require("../src/modules/northstar-region"),"./launch-session":require("../src/modules/launch-session"),"./console":{error:noop,ok:noop},"../win":()=>({log:x=>events.push(["log",x]),send:(...x)=>events.push(x)}),"../lang":lang,"./packages":{list:()=>({})}};
-  const context={require:id=>Object.hasOwn(modules,id)?modules[id]:require(id),module:{exports:{}},process:{pid:process.pid,argv:[]},Buffer,setTimeout,clearTimeout};vm.runInNewContext(source,context,{filename:"mods.js"});
+  const filename=path.join(__dirname,"../src/modules/mods.js"),localRequire=require("node:module").createRequire(filename);
+  const context={require:id=>Object.hasOwn(modules,id)?modules[id]:localRequire(id),module:{exports:{}},process:{pid:process.pid,argv:[]},Buffer,setTimeout,clearTimeout};vm.runInNewContext(source,context,{filename});
   return {base,gamepath,profile,file,put,settings,events,app,mods:context.module.exports,setGateBusy:value=>{gateBusy=value;},read:()=>JSON.parse(fs.readFileSync(file)),bytes:()=>fs.readFileSync(file)};
 }
 test("both schemas display actual enabled booleans and exact core directories",()=>{

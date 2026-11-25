@@ -1,6 +1,7 @@
 "use strict";
 const fs = require("fs"), path = require("path"), crypto = require("crypto");
 const HOSTS = Object.freeze({cn: "https://nscn.wolf109909.top", global: "https://northstar.tf"});
+const OFFICIAL_PROFILE = "R2Titanfall";
 const sha = bytes => crypto.createHash("sha256").update(bytes).digest("hex");
 function normalize(value) { return value === "global" ? "global" : "cn"; }
 function argumentsFor(args, region) {
@@ -20,9 +21,9 @@ function inside(base, candidate) {
   const relative = path.relative(base, candidate);
   return relative !== ".." && !relative.startsWith(".." + path.sep) && !path.isAbsolute(relative);
 }
-function resolveProfile(root, args) {
-  let profile = "R2Northstar";
-  for (let i = 0; i < args.length; i++) {
+function resolveProfile(root, args, forcedProfile) {
+  let profile = forcedProfile || "R2Northstar";
+  if (!forcedProfile) for (let i = 0; i < args.length; i++) {
     if (/^-profile=/i.test(args[i])) profile = args[i].slice(9);
     else if (/^-profile$/i.test(args[i]) && args[i + 1]) profile = args[++i];
   }
@@ -65,4 +66,4 @@ function apply(root, args, region, backupDirectory) {
   if (!fs.readFileSync(filename).equals(next)) throw Error("北极星网络配置切换后校验失败。");
   return {region, hostname: HOSTS[region], changed: true, backup};
 }
-module.exports = {HOSTS, normalize, argumentsFor, resolveProfile, apply};
+module.exports = {HOSTS, OFFICIAL_PROFILE, normalize, argumentsFor, resolveProfile, apply};

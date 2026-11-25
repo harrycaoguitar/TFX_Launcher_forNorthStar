@@ -10,6 +10,7 @@ module.exports = function attachWindowMove(win, initialSize) {
 	// isMaximized() still reports false. Keep the native event state as well so
 	// resize events cannot replace the saved restore rectangle with the work area.
 	let nativeMaximized = win.isMaximized();
+	let fullscreen = false, fullscreenBounds = null;
 	function isMaximized() { return nativeMaximized || win.isMaximized(); }
 	const bounds = win.getBounds();
 	function dimension(value, display) {
@@ -35,7 +36,7 @@ module.exports = function attachWindowMove(win, initialSize) {
 	setBounds(normal);
 	function state() {
 		if (win.isDestroyed()) return {maximized: false, bounds: {...normal}};
-		return {maximized: isMaximized(), bounds: win.getBounds()};
+		return {maximized: isMaximized(), fullscreen, bounds: win.getBounds()};
 	}
 	function notify() {
 		if (!win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send("window-state", state());
@@ -69,19 +70,21 @@ module.exports = function attachWindowMove(win, initialSize) {
 			if (!isMaximized()) normal = restored;
 		} finally { restoringWindow = false; }
 	}
+	win.on("enter-full-screen", () => { fullscreen = true; notify(); });
+	win.on("leave-full-screen", () => { fullscreen = false; notify(); });
 	win.on("blur", stop);
 	win.on("closed", stop);
 	win.on("maximize", () => { nativeMaximized = true; notify(); });
 	win.on("unmaximize", () => { nativeMaximized = false; notify(); });
 	win.on("resize", () => {
-		if (!applying && !restoringWindow && !gesture && !isMaximized() && !win.isMinimized()) {
+		if (!applying && !restoringWindow && !gesture && !isMaximized() && !win.isMinimized() && !fullscreen) {
 			const current = win.getBounds();
 			normal = normalize(current);
 		}
 	});
 	win.webContents.on("did-finish-load", notify);
 	ipcMain.handle("window-move-begin", (event, value) => {
-		if (!allowed(event) || !point(value)) return false;
+		if (!allowed(event) || fullscreen || !point(value)) return false;
 		const current = win.getBounds();
 		const edge = typeof value.edge === "string" && /^(n|s|e|w|ne|nw|se|sw)$/.test(value.edge) ? value.edge : "";
 		if (edge && isMaximized()) return false;
@@ -130,6 +133,23 @@ module.exports = function attachWindowMove(win, initialSize) {
 		if (allowed(event)) stop();
 		return state();
 	});
+	ipcMain.handle("window-toggle-fullscreen", event => {
+        if (!allowed(event)) return state();
+        stop();
+        const entering = !fullscreen;
+        if (entering) fullscreenBounds = win.getBounds();
+        fullscreen = entering;
+        win.setFullScreen(entering);
+        // Transparent Windows frames can report a false native getter after
+        // entering fullscreen; preserve our requested state and restore bounds.
+        if (!entering && fullscreenBounds && !win.isFullScreen()) setBounds(fullscreenBounds);
+        notify();
+        return state();
+    });
+    ipcMain.handle("window-background", event => {
+        if (!allowed(event)) return {ok:false};
+        return {ok:require("./background-tray").enter("manual")};
+    });
 	ipcMain.handle("window-toggle-maximize", async (event) => {
 		if (!allowed(event)) return state();
 		stop();

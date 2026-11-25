@@ -21,4 +21,4 @@ Extracted files only; the installer was never run.
 Source archive: https://github.com/ip7z/7zip/releases/download/26.04/7z2604-src.7z
 License: 7zip-full-LICENSE.txt (GNU LGPL 2.1 plus unRAR restriction for RAR decoder code).
 Used as a separate subprocess to inspect and decompress supported local archives including RAR.
-The older standalone 7za.exe is retained as a fallback; it cannot decode RAR.
+The older standalone 7za.exe is retained in the source tree only; it is not used or included in published builds.

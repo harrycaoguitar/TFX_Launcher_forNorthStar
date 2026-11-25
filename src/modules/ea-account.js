@@ -7,17 +7,17 @@ const path = require("path");
 const crypto = require("crypto");
 const {pathToFileURL} = require("url");
 const {execFile} = require("child_process");
-const {app, BrowserWindow, ipcMain, session} = require("electron");
+const {app, BrowserWindow, ipcMain, session, safeStorage} = require("electron");
 const api = require("./ea-api");
 const {createPcSign} = require("./ea-crypto");
 
-const STORE_VERSION = 1;
+const STORE_VERSION = 2;
 const SESSION_PARTITION = "persist:ea-login";
 const LOGIN_TIMEOUT = 10 * 60 * 1000;
 let registering = false;
 let activeLogin = null;
 let hardwareCache = null;
-let avatarAttempted = false;
+let accountOperation = null;
 
 // A small, token-free login log makes protocol/callback failures visible
 // without asking users to share the account store or EA credentials.
@@ -38,6 +38,7 @@ function asString(value) { return typeof value === "string" ? value : ""; }
 function normalizeAccount(value) {
 	if (!value || typeof value !== "object" || Array.isArray(value)) return null;
 	const account = {
+		id:asString(value.id),
 		playerName:asString(value.playerName),
 		personaId:asString(value.personaId),
 		userId:asString(value.userId),
@@ -57,20 +58,20 @@ function normalizeAccount(value) {
 	return account;
 }
 
-function readStore() {
-	try {
-		const data = JSON.parse(fs.readFileSync(storePath(), "utf8").replace(/^\uFEFF/u, ""));
-		if (data?.version !== STORE_VERSION) return null;
-		return normalizeAccount(data.account);
-	} catch (_) {
-		return null;
+function accountError(code, message) { return Object.assign(Error(message), {code}); }
+
+function requireEncryption() {
+	if (!safeStorage?.isEncryptionAvailable()) {
+		throw accountError("EA_STORAGE_UNAVAILABLE", "无法使用系统加密保存 EA 账号。");
 	}
 }
 
-function writeStore(account) {
+function writeVault(vault) {
+	requireEncryption();
 	const filename = storePath();
 	fs.mkdirSync(path.dirname(filename), {recursive:true});
-	const payload = JSON.stringify({version:STORE_VERSION, account:normalizeAccount(account)}) + "\n";
+	const encrypted = safeStorage.encryptString(JSON.stringify(vault)).toString("base64");
+	const payload = JSON.stringify({version:STORE_VERSION, encrypted}) + "\n";
 	const temporary = filename + ".save-" + crypto.randomUUID() + ".tmp";
 	try {
 		fs.writeFileSync(temporary, payload, {encoding:"utf8", mode:0o600, flag:"wx"});
@@ -80,15 +81,65 @@ function writeStore(account) {
 	}
 }
 
-function clearStore() {
-	try { fs.unlinkSync(storePath()); } catch (_) {}
+function readVault() {
+	let data;
+	try {
+		data = JSON.parse(fs.readFileSync(storePath(), "utf8").replace(/^\uFEFF/u, ""));
+	} catch (error) {
+		if (error.code === "ENOENT") return {activeId:"", accounts:[]};
+		throw accountError("EA_STORAGE_UNREADABLE", "无法读取已保存的 EA 账号。");
+	}
+	if (data?.version === 1) {
+		const account = normalizeAccount(data.account);
+		if (!account || !(account.userId || account.accessToken || account.refreshToken)) return {activeId:"", accounts:[]};
+		// Replace the legacy single-account file only after encryption succeeds.
+		account.id = crypto.randomUUID();
+		const vault = {activeId:account.id, accounts:[account]};
+		writeVault(vault);
+		return vault;
+	}
+	if (data?.version !== STORE_VERSION || typeof data.encrypted !== "string") {
+		throw accountError("EA_STORAGE_UNREADABLE", "无法读取已保存的 EA 账号。");
+	}
+	requireEncryption();
+	try {
+		const raw = JSON.parse(safeStorage.decryptString(Buffer.from(data.encrypted, "base64")));
+		const accounts = raw.accounts.map(normalizeAccount);
+		if (accounts.some(account=>!account?.id) || new Set(accounts.map(account=>account.id)).size !== accounts.length ||
+			(accounts.length ? !accounts.some(account=>account.id===raw.activeId) : raw.activeId!=="")) throw Error("Invalid vault");
+		return {activeId:raw.activeId, accounts};
+	} catch (_) {
+		throw accountError("EA_STORAGE_UNREADABLE", "无法读取已保存的 EA 账号。");
+	}
+}
+
+function activeAccount(vault) { return vault.accounts.find(account=>account.id===vault.activeId) || null; }
+function readStore() { return activeAccount(readVault()); }
+
+function writeStore(value, {activate = false} = {}) {
+	const account = normalizeAccount(value), vault = readVault();
+	const index = vault.accounts.findIndex(existing=>account.id===existing.id || (account.userId && account.userId===existing.userId));
+	account.id = index < 0 ? crypto.randomUUID() : vault.accounts[index].id;
+	if (index < 0) vault.accounts.push(account);
+	else vault.accounts[index] = account;
+	if (activate || !vault.activeId) vault.activeId = account.id;
+	writeVault(vault);
+	return account;
+}
+
+function operate(task) {
+	if (accountOperation) throw accountError("EA_ACCOUNT_BUSY", "正在处理 EA 账号，请稍候。");
+	const operation = accountOperation = Promise.resolve().then(task);
+	return operation.finally(()=>{accountOperation = null;});
 }
 
 function publicStatus(account = readStore()) {
 	const now = Date.now();
-	const expired = Boolean(account?.expiresAt && account.expiresAt <= now);
+	const loggedIn = Boolean(account?.accessToken || account?.refreshToken);
+	const expired = Boolean(account && (!loggedIn || account.expiresAt && account.expiresAt <= now));
 	return {
-		loggedIn:Boolean(account?.accessToken || account?.refreshToken),
+		accountId:account?.id || "",
+		loggedIn,
 		expired,
 		playerName:account?.playerName || "",
 		personaId:account?.personaId || "",
@@ -114,23 +165,19 @@ async function ensureAccess() {
 		writeStore({...account, accessToken:"", refreshToken:"", expiresAt:0});
 		throw Object.assign(Error("EA 登录已过期，请重新登录。"), {code:"EA_TOKEN_EXPIRED"});
 	}
+	let refreshed;
 	try {
-		const refreshed = await api.refreshToken(account.refreshToken);
-		account = {
-			...account,
-			accessToken:refreshed.accessToken,
-			refreshToken:refreshed.refreshToken,
-			tokenType:refreshed.tokenType,
-			expiresAt:refreshed.expiresIn ? Date.now() + refreshed.expiresIn * 1000 : 0,
-			remid:refreshed.cookies?.remid || account.remid,
-			sid:refreshed.cookies?.sid || account.sid
-		};
-		writeStore(account);
-		return account;
+		refreshed = await api.refreshToken(account.refreshToken);
 	} catch (error) {
+		if (error?.code !== "EA_TOKEN_EXPIRED") throw error;
 		writeStore({...account, accessToken:"", refreshToken:"", expiresAt:0});
-		throw Object.assign(Error("EA 登录已过期，请重新登录。"), {code:"EA_TOKEN_EXPIRED", cause:error?.message});
+		throw error;
 	}
+	return writeStore({
+		...account, accessToken:refreshed.accessToken, refreshToken:refreshed.refreshToken,
+		tokenType:refreshed.tokenType, expiresAt:refreshed.expiresIn ? Date.now() + refreshed.expiresIn * 1000 : 0,
+		remid:refreshed.cookies?.remid || account.remid, sid:refreshed.cookies?.sid || account.sid
+	});
 }
 
 async function ensureIdentity(account) {
@@ -274,7 +321,19 @@ function shortLoadError(error) {
 	return match ? match[1] : "ERR_FAILED";
 }
 
-async function login({reset = false, parent} = {}) {
+function assertAccountEditable() {
+	if (require("./ea-emulator").isActive() || require("./launch").isLaunching()) {
+		throw accountError("EA_SERVICE_ACTIVE", "请先退出游戏，再管理 EA 账号。");
+	}
+}
+
+function login(options) { return operate(()=>signIn(options)); }
+async function signIn({reset = false, parent, accountId = ""} = {}) {
+	assertAccountEditable();
+	requireEncryption();
+	const vault = readVault();
+	const reconnect = accountId && vault.accounts.find(account=>account.id===accountId);
+	if (accountId && !reconnect) throw accountError("EA_ACCOUNT_NOT_FOUND", "未找到此 EA 账号。");
 	if (activeLogin) {
 		if (activeLogin.isDestroyed?.()) {
 			activeLogin = null;
@@ -286,7 +345,10 @@ async function login({reset = false, parent} = {}) {
 	loginLog({stage:"login-start", reset:reset === true});
 	if (!hardwareCache) hardwareCache = await readHardware();
 	const {url, codeVerifier} = createAuthUrl(hardwareCache);
-	const webSession = session.fromPartition(SESSION_PARTITION);
+	// Saved accounts keep their own credentials; the login page starts without
+	// another account's web cookies when adding or reconnecting.
+	const partition = vault.accounts.length ? "ea-signin-" + crypto.randomUUID() : SESSION_PARTITION;
+	const webSession = session.fromPartition(partition);
 	if (reset) {
 		try { await webSession.clearStorageData({storages:["cookies", "localstorage", "indexdb", "cachestorage", "serviceworkers"]}); } catch (_) {}
 	}
@@ -331,8 +393,15 @@ async function login({reset = false, parent} = {}) {
 			loginLog({stage:"callback"});
 			void completeCallback(value, codeVerifier, webSession, loginWindow)
 				.then(account => {
+					if (settled) return;
+					assertAccountEditable();
+					if (!account.userId) throw accountError("EA_ACCOUNT_ID_MISSING", "EA 未返回账号 ID，请重新登录。");
+					if (reconnect?.userId && reconnect.userId !== account.userId) {
+						throw accountError("EA_ACCOUNT_MISMATCH", "登录的不是当前 EA 账号。请重新登录，或使用「添加账号」。");
+					}
+					const saved = writeStore(reconnect ? {...account,id:reconnect.id} : account, {activate:true});
 					loginLog({stage:"login-success"});
-					finish(null, publicStatus(account));
+					finish(null, publicStatus(saved));
 				})
 				.catch(error => finish(error));
 			return true;
@@ -342,7 +411,7 @@ async function login({reset = false, parent} = {}) {
 				width:560, height:780, minWidth:420, minHeight:560,
 				parent:parent || undefined, modal:false, show:false,
 				title:"EA 登录", backgroundColor:"#160b2b", autoHideMenuBar:true,
-				webPreferences:{partition:SESSION_PARTITION, contextIsolation:true, nodeIntegration:false, sandbox:true}
+				webPreferences:{partition, contextIsolation:true, nodeIntegration:false, sandbox:true}
 			});
 			activeLogin = loginWindow;
 			loginLog({stage:"window-created"});
@@ -437,12 +506,11 @@ async function completeCallback(callbackUrl, codeVerifier, webSession, loginWind
 		expiresAt:tokens.expiresIn ? Date.now() + tokens.expiresIn * 1000 : 0,
 		loginAt:new Date().toISOString()
 	});
-	account = await loadAvatar(account);
-	writeStore(account);
-	return account;
+	return loadAvatar(account);
 }
 
-async function launchProfile() {
+function launchProfile() { return operate(readLaunchProfile); }
+async function readLaunchProfile() {
 	let account = await ensureAccess();
 	account = await ensureIdentity(account);
 	return {
@@ -457,37 +525,54 @@ async function launchProfile() {
 	};
 }
 
-async function logout() {
-	const webSession = session.fromPartition(SESSION_PARTITION);
-	try { await webSession.clearStorageData({storages:["cookies", "localstorage", "indexdb", "cachestorage", "serviceworkers"]}); } catch (_) {}
-	clearStore();
-	return publicStatus(null);
+function logout() {
+	return operate(async()=>{
+		assertAccountEditable();
+		const vault = readVault();
+		if (!vault.activeId) return publicStatus(null);
+		const accountId = vault.activeId;
+		vault.accounts = vault.accounts.filter(account=>account.id!==accountId);
+		vault.activeId = vault.accounts[0]?.id || "";
+		writeVault(vault);
+		const webSession = session.fromPartition(SESSION_PARTITION);
+		try { await webSession.clearStorageData({storages:["cookies", "localstorage", "indexdb", "cachestorage", "serviceworkers"]}); } catch (_) {}
+		return publicStatus(activeAccount(vault));
+	});
+}
+
+function switchAccount(accountId) {
+	return operate(()=>{
+		assertAccountEditable();
+		const vault = readVault();
+		const target = vault.accounts.find(account=>account.id===accountId);
+		if (!target) throw accountError("EA_ACCOUNT_NOT_FOUND", "未找到此 EA 账号。");
+		if (vault.activeId!==target.id) writeVault({...vault,activeId:target.id});
+		return publicStatus(target);
+	});
 }
 
 function failure(error) {
 	return {ok:false, code:error?.code || "EA_ACCOUNT_FAILED", error:error?.message || String(error)};
 }
 
-async function statusWithAvatar() {
-	let account = readStore();
-	if (account?.accessToken && !account.avatarPath && !avatarAttempted) {
-		avatarAttempted = true;
-		try {
-			account = await ensureIdentity(await ensureAccess());
-			account = await loadAvatar(account);
-		} catch (_) {}
-	}
-	return publicStatus(account);
+function accountListStatus() {
+	const vault = readVault();
+	return {...publicStatus(activeAccount(vault)), accounts:vault.accounts.map(account=>{
+		const {accountId,playerName,userId,loggedIn,expired}=publicStatus(account);
+		return {accountId,playerName,userId,loggedIn,expired};
+	})};
 }
 
 function register() {
 	if (registering) return;
 	registering = true;
-	ipcMain.handle("ea-status", () => statusWithAvatar());
+	ipcMain.handle("ea-status", async () => {
+		try { return accountListStatus(); } catch (error) { return failure(error); }
+	});
 	ipcMain.handle("ea-login", async (_event, options = {}) => {
 		try {
 			const main = require("../win")();
-			return {ok:true, status:await login({parent:main && !main.isDestroyed() ? main : undefined, reset:options?.reset === true})};
+			return {ok:true, status:await login({parent:main && !main.isDestroyed() ? main : undefined, reset:options?.reset === true, accountId:asString(options?.accountId)})};
 		} catch (error) {
 			return failure(error);
 		}
@@ -496,13 +581,20 @@ function register() {
 		try { return {ok:true, status:await logout()}; }
 		catch (error) { return failure(error); }
 	});
+	ipcMain.handle("ea-switch-account", async (_event, accountId) => {
+		try { return {ok:true, status:await switchAccount(accountId)}; }
+		catch (error) { return failure(error); }
+	});
 	ipcMain.handle("ea-refresh", async () => {
 		try {
-			avatarAttempted = false;
-			return {ok:true, status:await statusWithAvatar()};
+			// A cached avatar must not prevent expired credentials from refreshing.
+			return await operate(async()=>{
+				const account = writeStore(await loadAvatar(await ensureIdentity(await ensureAccess())));
+				return {ok:true, status:publicStatus(account)};
+			});
 		}
 		catch (error) { return failure(error); }
 	});
 }
 
-module.exports = {register, status:publicStatus, statusWithAvatar, login, logout, launchProfile, ensureAccess, readStore, writeStore, storePath, SESSION_PARTITION, _test:{createAuthUrl, base64url, normalizeAccount, publicStatus, isJunoCallbackUrl, shortLoadError}};
+module.exports = {register, status:publicStatus, login, logout, launchProfile, ensureAccess, readStore, writeStore, storePath, SESSION_PARTITION, _test:{createAuthUrl, base64url, normalizeAccount, publicStatus, isJunoCallbackUrl, shortLoadError}};

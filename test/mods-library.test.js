@@ -2,13 +2,15 @@
 const os = require("node:os");
 const test = require("node:test"), assert = require("node:assert/strict"), fs = require("fs"), path = require("path"), vm = require("vm"), crypto = require("crypto"), {EventEmitter} = require("events");
 const state = require("../src/modules/mod-enabled-state");
+const {createRequire} = require("node:module");
 const sourcePath = path.join(__dirname, "../src/modules/mods.js"), source = fs.readFileSync(sourcePath, "utf8");
 const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "tfx-mods-library-")); 
 function fixture({custom = false, missingMods = false, importAction} = {}) {
   const base = fs.mkdtempSync(path.join(fixtureRoot, "case-")), gamePath = path.join(base, "game"), userData = path.join(base, "data"), profile = path.join(gamePath, custom ? "Custom Profile" : "R2Northstar");
   fs.mkdirSync(profile, {recursive: true}); fs.mkdirSync(userData); fs.writeFileSync(path.join(gamePath, "NorthstarLauncher.exe"), "fixture");
+  fs.writeFileSync(path.join(gamePath, "Titanfall2.exe"), "fixture");
   if (!missingMods) fs.mkdirSync(path.join(profile, "mods"));
-  const saved = {gamepath: gamePath, nsargs: custom ? '-profile "Custom Profile"' : ""};
+  const saved = {gamepath: gamePath, globalGamepath: gamePath, nsargs: custom ? '-profile "Custom Profile"' : ""};
   const window = new EventEmitter(), app = new EventEmitter(), events = [], handles = [], timers = new Map(), ipc = new Map(), imports = [];
   let timerId = 0, gateBusy = false, scans = 0, processSnapshot = {ok: true, processes: []};
   window.hidden = false; window.minimized = false; window.isVisible = () => !window.hidden; window.isMinimized = () => window.minimized; window.isDestroyed = () => false;
@@ -26,13 +28,15 @@ function fixture({custom = false, missingMods = false, importAction} = {}) {
     "./is_running": {snapshot: async () => typeof processSnapshot === "function" ? processSnapshot() : processSnapshot},
     "./dds-operation-gate": {get busy() {return gateBusy;}, async run(_label, action) {if (gateBusy) throw Error("Operation already active"); gateBusy = true; try {return await action();} finally {gateBusy = false;}}}
   };
-  const context = {require: id => Object.hasOwn(modules, id) ? modules[id] : require(id), module: {exports: {}}, Buffer, process: {argv: ["--neo-profile=fixture"], pid: process.pid},
+  const localRequire = createRequire(sourcePath);
+  const context = {require: id => Object.hasOwn(modules, id) ? modules[id] : localRequire(id), module: {exports: {}}, Buffer, process: {argv: ["--neo-profile=fixture"], pid: process.pid},
     setTimeout(callback, milliseconds) {const token = {id: ++timerId, unref() {}}; timers.set(token.id, {callback, milliseconds}); return token;}, clearTimeout(token) {timers.delete(token?.id || token);}};
   vm.runInNewContext(source, context, {filename: sourcePath});
   const put = (name, version = "1", folder = name, owner = null, extra = {}) => {
-    const directory = path.join(profile, owner ? "packages" : "mods", ...(owner ? [owner, "mods"] : []), folder); fs.mkdirSync(directory, {recursive: true});
+    const targetProfile = saved.modProfileServer === "official" ? path.join(gamePath,"R2Titanfall") : profile;
+    const directory = path.join(targetProfile, owner ? "packages" : "mods", ...(owner ? [owner, "mods"] : []), folder); fs.mkdirSync(directory, {recursive: true});
     fs.writeFileSync(path.join(directory, "mod.json"), JSON.stringify({Name: name, Version: version, ...extra}));
-    if (owner) {const parts = owner.split("-"); fs.writeFileSync(path.join(profile, "packages", owner, "manifest.json"), JSON.stringify({name: parts[1], version_number: parts[2]}));}
+    if (owner) {const parts = owner.split("-"); fs.writeFileSync(path.join(targetProfile, "packages", owner, "manifest.json"), JSON.stringify({name: parts[1], version_number: parts[2]}));}
     return directory;
   };
   const flush = () => {const current = [...timers.values()]; timers.clear(); current.forEach(timer => timer.callback());};
@@ -287,16 +291,20 @@ test("independent toggle snapshots the confirmed choice and a snapshot failure r
 
 test("official Mod selection protects VanillaPlus and disables incompatible Northstar core operations", async () => {
   const f = fixture(), profiles = require("../src/modules/server-mod-profiles");
+  for (const name of state.CORE_NAMES) f.put(name);
+  f.put("Community.Only");
+  Object.assign(f.saved, {modProfileServer: "official", independentServerMods: true});
   for (const name of state.CORE_NAMES) f.put(name); f.put("VanillaPlus", "2.5.1", "NP.VanillaPlus", "NachosChipeados-VanillaPlus-2.5.1"); f.put("Personal");
-  Object.assign(f.saved, {modProfileServer: "official", independentServerMods: true}); profiles.transition(f.saved, f.saved);
+  profiles.transition(f.saved, f.saved);
   const before = hashTree(f.gamePath), vanilla = f.mods.list({readOnly: true}).all.find(item => item.name === "VanillaPlus");
   assert.equal(vanilla.required, true); assert.equal(vanilla.disabled, false);
+  assert.equal(f.mods.list({readOnly:true}).all.some(item => item.name === "Community.Only"),false);
   assert.equal(f.mods.setState({names: ["VanillaPlus"], enabled: false}).code, "CORE_REQUIRED");
   assert.equal(f.mods.setState({names: ["Northstar.Client"], enabled: true}).code, "CORE_REQUIRED");
   assert.equal(f.mods.remove("VanillaPlus").code, "CORE_REQUIRED"); assert.equal(hashTree(f.gamePath), before);
-  assert.equal(f.mods.modfile.gen().ok, true); profiles.assertOfficialReady(f.profile);
+  assert.equal(f.mods.modfile.gen().ok, true); profiles.assertOfficialReady(path.join(f.gamePath,"R2Titanfall"));
   profiles.transition(f.saved, {...f.saved, modProfileServer: "cn"}); f.saved.modProfileServer = "cn";
-  assert.equal(f.mods.setState({names: ["VanillaPlus"], enabled: true}).code, "CORE_REQUIRED");
+  assert.equal(f.mods.list({readOnly:true}).all.some(item => item.name === "VanillaPlus"),false);
   for (const name of state.CORE_NAMES) assert.equal(f.mods.list({readOnly: true}).all.find(item => item.name === name).disabled, false);
 });
 test("official server selection during asynchronous Mod guard cancels the old server mutation", async () => {
@@ -313,8 +321,9 @@ test("older and duplicate VanillaPlus packages remain removable so the dedicated
   const rows = f.mods.list({readOnly: true}).all.filter(item => item.name === "VanillaPlus");
   assert.equal(rows.find(item => item.stateVersion === "2.4.1").required, false); assert.equal(rows.find(item => item.stateVersion === "2.5.1").required, true);
   const duplicate = rows.find(item => item.stateVersion === "2.4.1"); assert.equal(f.mods.remove({name: "VanillaPlus", folder_name: duplicate.folder_name, package: duplicate.package}), true);
-  assert.equal(fs.existsSync(path.join(f.profile, "packages/NachosChipeados-VanillaPlus-2.4.1")), false);
-  assert.equal(fs.existsSync(path.join(f.profile, "packages/NachosChipeados-VanillaPlus-2.5.1/mods/NP.VanillaPlus/mod.json")), true);
+  const official=path.join(f.gamePath,"R2Titanfall");
+  assert.equal(fs.existsSync(path.join(official, "packages/NachosChipeados-VanillaPlus-2.4.1")), false);
+  assert.equal(fs.existsSync(path.join(official, "packages/NachosChipeados-VanillaPlus-2.5.1/mods/NP.VanillaPlus/mod.json")), true);
 });
 
 test.after(() => {

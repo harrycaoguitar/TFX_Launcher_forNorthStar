@@ -54,15 +54,38 @@ function validateManifest(manifest, channel) {
   if (channel === "cn" && (seen.has("r2northstar/northstar.dll") || !seen.has("launcher.dll")) || channel === "global" && (seen.has("northstar.dll") || seen.has("launcher.dll"))) throw Error("北极星客户端清单混合了国服与全球服的加载文件");
   return manifest;
 }
+async function mapLimit(items, limit, worker) {
+  const list = Array.isArray(items) ? items : [...items];
+  if (!list.length) return [];
+  const results = new Array(list.length);
+  let next = 0, failed = false;
+  const workers = Array.from({length: Math.min(limit, list.length)}, async () => {
+    while (!failed) {
+      const index = next++;
+      if (index >= list.length) return;
+      try {results[index] = await worker(list[index], index);}
+      catch (error) {failed = true; throw error;}
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
 async function lstat(filename) {try {return await fsp.lstat(filename);} catch (error) {if (error.code === "ENOENT") return null; throw error;}}
-async function safeAncestors(root, relative, includeLeaf = true) {
+async function safeAncestors(root, relative, includeLeaf = true, verifiedDirs = null) {
   relativePath(relative); let current = root;
   const parts = relative.split("/"), count = includeLeaf ? parts.length : parts.length - 1;
   for (let i = 0; i < count; i++) {
-    current = path.join(current, parts[i]); const stat = await lstat(current);
+    current = path.join(current, parts[i]);
+    const isParent = i < parts.length - 1;
+    const dirKey = isParent && verifiedDirs ? key(current) : null;
+    if (dirKey && verifiedDirs.has(dirKey)) continue;
+    const stat = await lstat(current);
     if (!stat) continue;
     if (stat.isSymbolicLink()) throw Error("北极星受控路径包含符号链接或目录联接，已停止切换：" + relative);
-    if (i < parts.length - 1 && !stat.isDirectory()) throw Error("北极星文件路径被同名文件阻挡：" + relative);
+    if (isParent) {
+      if (!stat.isDirectory()) throw Error("北极星文件路径被同名文件阻挡：" + relative);
+      if (dirKey) verifiedDirs.add(dirKey);
+    }
   }
   return path.join(root, ...parts);
 }
@@ -105,13 +128,15 @@ async function validateBundle(directory, channel) {
   if (!stat.isFile() || stat.size > 8 * 1024 * 1024) throw Error("北极星客户端清单体积无效");
   const manifest = validateManifest(await readJson(path.join(root, "manifest.json")), channel);
   await safeAncestors(root, "payload");
-  const files = new Map();
-  for (const file of manifest.files) {
-    const filename = await safeAncestors(root, "payload/" + file.path);
+  const verifiedDirs = new Set();
+  const validated = await mapLimit(manifest.files, 16, async file => {
+    const filename = await safeAncestors(root, "payload/" + file.path, true, verifiedDirs);
     if (!equalInfo(await fileInfo(filename), file)) throw Error("北极星客户端文件校验失败：" + file.path);
     if (/\.(?:exe|dll)$/i.test(file.path) && !await validBinary(filename)) throw Error("北极星客户端包含无效的 64 位启动文件：" + file.path);
-    files.set(key(file.path), {...file, source: filename});
-  }
+    return {...file, source: filename};
+  });
+  const files = new Map();
+  for (const item of validated) files.set(key(item.path), item);
   for (const name of CORE_NAMES) {
     const file = files.get(key(PROFILE + "/mods/" + name + "/mod.json"));
     if (file.size > 1024 * 1024) throw Error("北极星核心模组清单过大");
@@ -131,7 +156,7 @@ class NorthstarClientSwitcher {
   constructor({bundleRoot = path.join(__dirname, "../tools/clients"), bundleProvider, stateRoot, processCheck = defaultProcessCheck, acquireLock = acquireGameLock, progress = () => {}, hook = async () => {}} = {}) {
     this.bundleRoot = bundleRoot; this.bundleProvider = bundleProvider; this.stateRoot = stateRoot;
     this.processCheck = processCheck; this.acquireLock = acquireLock; this.progress = progress; this.hook = hook; this.busy = false;
-    this.rotation = require("./northstar-client-rotation")(this, {fsp, path, crypto, key, hash, samePath, inside, lstat, safeAncestors, fileInfo, equalInfo, readJson, writeJson, safeCopy, validateManifest, validateBundle, CORE_DIRS, ROOT_FILES, CHANNELS, ID, HASH, MAX_FILES, MAX_FILE_BYTES});
+    this.rotation = require("./northstar-client-rotation")(this, {fsp, path, crypto, key, hash, samePath, inside, lstat, safeAncestors, fileInfo, equalInfo, readJson, writeJson, safeCopy, validateManifest, validateBundle, mapLimit, CORE_DIRS, ROOT_FILES, CHANNELS, ID, HASH, MAX_FILES, MAX_FILE_BYTES});
   }
   emit(phase, percent, message, detail = {}) {try {this.progress({phase, percent, message, ...detail});} catch (_) { /* A disconnected renderer cannot break a disk transaction. */ }}
   async assertStopped(root) {
@@ -166,24 +191,35 @@ class NorthstarClientSwitcher {
   mapPath(context, source) {return source.startsWith(PROFILE + "/") ? context.profile + source.slice(PROFILE.length) : source;}
   sourcePath(context, target) {return key(target).startsWith(key(context.profile) + "/") ? PROFILE + target.slice(context.profile.length) : target;}
   async scan(context, roots, extras = []) {
-    const files = new Map(), exclude = new Set(extras.map(key)); let total = 0;
+    const files = new Map(), exclude = new Set(extras.map(key)), verifiedDirs = new Set(), seen = new Set(), pending = [];
     const visit = async relative => {
-      const filename = await safeAncestors(context.root, relative), stat = await lstat(filename); if (!stat) return;
+      const filename = await safeAncestors(context.root, relative, true, verifiedDirs), stat = await lstat(filename); if (!stat) return;
       if (stat.isSymbolicLink()) throw Error("北极星受控目录包含符号链接，已停止切换：" + relative);
       if (stat.isDirectory()) {
+        verifiedDirs.add(key(filename));
         for (const entry of await fsp.readdir(filename, {withFileTypes: true})) await visit(relative + "/" + entry.name);
       } else if (stat.isFile()) {
         if (exclude.has(key(relative))) return;
         if (!ownedPath(this.sourcePath(context, relative))) throw Error("北极星受控目录包含非官方路径：" + relative);
-        const info = await fileInfo(filename);
-        if (files.has(key(relative))) throw Error("北极星受控目录存在大小写重复文件");
-        const after = await lstat(filename);
-        if (!after?.isFile() || after.isSymbolicLink() || stat.size !== after.size || stat.mtimeMs !== after.mtimeMs || stat.ctimeMs !== after.ctimeMs) throw Error("北极星受控文件在校验时发生变化，已停止切换");
-        files.set(key(relative), {path: relative, ...info, stamp: {size: after.size, mtimeMs: after.mtimeMs, ctimeMs: after.ctimeMs, ino: after.ino, dev: after.dev}}); total += info.size;
-        if (files.size > MAX_FILES || total > MAX_TOTAL_BYTES) throw Error("北极星受控目录体积超出安全上限");
+        if (seen.has(key(relative))) throw Error("北极星受控目录存在大小写重复文件");
+        seen.add(key(relative));
+        if (seen.size > MAX_FILES) throw Error("北极星受控目录体积超出安全上限");
+        pending.push({relative, filename, stat});
       } else throw Error("北极星受控目录包含特殊文件：" + relative);
     };
     for (const relative of new Map(roots.map(value => [key(value), value])).values()) await visit(relative);
+    let total = 0;
+    const scanned = await mapLimit(pending, 16, async ({relative, filename, stat}) => {
+      const info = await fileInfo(filename);
+      const after = await lstat(filename);
+      if (!after?.isFile() || after.isSymbolicLink() || stat.size !== after.size || stat.mtimeMs !== after.mtimeMs || stat.ctimeMs !== after.ctimeMs) throw Error("北极星受控文件在校验时发生变化，已停止切换");
+      return {relative, info, stamp: {size: after.size, mtimeMs: after.mtimeMs, ctimeMs: after.ctimeMs, ino: after.ino, dev: after.dev}};
+    });
+    for (const {relative, info, stamp} of scanned) {
+      files.set(key(relative), {path: relative, ...info, stamp});
+      total += info.size;
+      if (files.size > MAX_FILES || total > MAX_TOTAL_BYTES) throw Error("北极星受控目录体积超出安全上限");
+    }
     return files;
   }
   validateReceipt(context, receipt) {
@@ -552,7 +588,11 @@ class NorthstarClientSwitcher {
     const active = receipt || await this.recognizeInstalled(context), shared = this.validateSharedReceipt(context, await readJson(path.join(context.sharedState, "root-installed.json")));
     const presence = async (root, files) => {
       let present = 0, missing = 0;
-      for (const file of files) {const stat = await lstat(await safeAncestors(root, file.path)); if (stat?.isFile() && !stat.isSymbolicLink() && (file.size === undefined || stat.size === file.size)) present++; else missing++;}
+      const verifiedDirs = new Set();
+      await mapLimit(files, 16, async file => {
+        const stat = await lstat(await safeAncestors(root, file.path, true, verifiedDirs));
+        if (stat?.isFile() && !stat.isSymbolicLink() && (file.size === undefined || stat.size === file.size)) present++; else missing++;
+      });
       return {present, missing};
     };
     if (active) {
@@ -585,6 +625,9 @@ class NorthstarClientSwitcher {
   async inspect(options) {
     const context = await this.context(options.gameRoot, options.profile), installed = this.validateReceipt(context, await readJson(path.join(context.state, "installed.json"))), pending = await this.pendingAcrossRoot(context);
     const result = {installed: installed ? {channel: installed.channel, version: installed.version, installedAt: installed.installedAt, transactionId: installed.transactionId} : null, pending: pending.map(({value}) => ({id: value.id, channel: value.channel, state: value.state})), ready: !pending.length, backupRoot: context.state};
+    // Launch has just verified the active payload in ensure(); only unfinished
+    // transactions need a fresh check here, not both channels and their backups.
+    if (options.transactionOnly === true) return result;
     if (!installed) {try {result.installed = await this.recognizeInstalled(context) || null;} catch (error) {result.recognitionError = error.message;}}
     try {result.available = await this.installedChannels(context, installed); result.channels = result.available;} catch (error) {result.availableError = error.message;}
     return result;
@@ -594,7 +637,7 @@ class NorthstarClientSwitcher {
     return this.installedChannels(context, receipt);
   }
   async install(options) {return this.ensure({...options, allowInstall: true, refresh: true});}
-  async assertReady(options) {const result = await this.inspect({...options, includeAvailable: false}); if (!result.ready) throw Error("上次北极星客户端文件切换未完成，请退出游戏并重试启动以恢复备份"); return result;}
+  async assertReady(options) {const result = await this.inspect({...options, transactionOnly: true}); if (!result.ready) throw Error("上次北极星客户端文件切换未完成，请退出游戏并重试启动以恢复备份"); return result;}
   async recover(options) {
     return this.locked(options, async context => {const pending = await this.pendingAcrossRoot(context); if (pending.length > 1) throw Error("多个北极星恢复事务无法自动排序，请保留备份"); if (!pending.length) return {recovered: false}; return this.restoreTransaction(pending[0].context, pending[0]);});
   }

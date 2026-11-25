@@ -19,6 +19,15 @@ test('diagnostic bridge does not open unrestricted IPC or forward the Electron e
  let event;f.api.on('launch-diagnostic',(value)=>{event=value;});f.listeners.get('launch-diagnostic')({sender:'secret'},{state:'starting'});assert.equal(event.sender,undefined);
  f.api.on('arbitrary-channel',()=>{});assert.equal(f.listeners.has('arbitrary-channel'),false);
 });
+
+test('EA page can invoke diagnosis, clipboard report and log actions through the isolated bridge',async()=>{
+ const f=bridge();
+ for(const channel of ['ea-status','ea-refresh','ea-diagnostics','ea-diagnostics-repair','ea-diagnostics-copy','ea-diagnostics-open-log'])assert.equal((await f.api.invoke(channel)).ok,true);
+ assert.equal((await f.api.invoke('ea-switch-account','saved-account')).ok,true);
+ assert.equal(f.calls.at(-1).args[0],'saved-account');
+ assert.equal(f.calls.length,7);
+ await assert.rejects(f.api.invoke('clipboard-read'),/not allowed/);
+});
 test('Arsenal state restoration and safe maintenance reach main through the production bridge',async()=>{
  const f=bridge(),target={weaponId:'car',targetMode:'installed',recordId:'dds:12345678-1234-1234-1234-123456789abc'};
  for(const [channel,input]of [['weapon-library-list',{}],['weapon-library-restore',target],['weapon-library-prune',{}]])assert.equal((await f.api.invoke(channel,input)).ok,true);

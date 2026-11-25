@@ -98,8 +98,8 @@ async function ensureRegistry() {
 const REGISTRY_READ_SCRIPT = String.raw`
 $ErrorActionPreference='SilentlyContinue'
 $result=@()
-foreach($hive in @([Microsoft.Win32.Registry]::CurrentUser,[Microsoft.Win32.Registry]::LocalMachine)){
-  $hiveName=if($hive -eq [Microsoft.Win32.Registry]::CurrentUser){'HKCU'}else{'HKLM'}
+foreach($hive in @([Microsoft.Win32.RegistryHive]::CurrentUser,[Microsoft.Win32.RegistryHive]::LocalMachine)){
+  $hiveName=if($hive -eq [Microsoft.Win32.RegistryHive]::CurrentUser){'HKCU'}else{'HKLM'}
   foreach($view in @([Microsoft.Win32.RegistryView]::Registry64,[Microsoft.Win32.RegistryView]::Registry32)){
     $base=[Microsoft.Win32.RegistryKey]::OpenBaseKey($hive,$view)
     if($null -eq $base){continue}
@@ -190,16 +190,15 @@ async function start({root, profile, contentId = CONTENT_ID, log = () => {}} = {
 	// A previous game has already exited (launch guards reject while one runs),
 	// so an old local endpoint is safe to replace with the current account.
 	await stopActive();
-	let server = new EaLsxServer({account:profile, contentId, locale, gameVersion, avatarPath:profile.avatarPath || "", log:writeLog});
+	const server = new EaLsxServer({account:profile, contentId, locale, gameVersion, avatarPath:profile.avatarPath || "", log:writeLog});
 	try {
 		await server.start();
 	} catch (error) {
-		if (error.code !== "EA_PORT_IN_USE") throw Object.assign(Error("无法启动 EA 模拟器服务，请稍后重试。"), {code:"EA_LSX_START_FAILED", cause:error?.message});
 		await server.stop();
-		server = new EaLsxServer({account:profile, contentId, locale, gameVersion, avatarPath:profile.avatarPath || "", log:writeLog, port:0});
-		try { await server.start(); }
-		catch (retryError) { throw Object.assign(Error("无法建立本地连接，请稍后重试。"), {code:"EA_LSX_START_FAILED", cause:retryError?.message}); }
-		log({stage:"port-recovered", port:server.address.port});
+		// Titanfall 2 can keep using SDK port 3216 despite EALsxPort. A random
+		// port would leave it talking to EA App while we report emulator readiness.
+		if (error.code === "EA_PORT_IN_USE") throw Object.assign(Error("EA 模拟器需要使用本地端口 3216，该端口已被占用。请完全退出 EA App 或其他 EA 模拟器后重试；若要通过 EA App 启动，请先关闭 EA 模拟器开关。"), {code:"EA_PORT_IN_USE"});
+		throw Object.assign(Error("无法启动 EA 模拟器服务，请稍后重试。"), {code:"EA_LSX_START_FAILED", cause:error?.message});
 	}
 	let stopped = false;
 	activeServer = server;

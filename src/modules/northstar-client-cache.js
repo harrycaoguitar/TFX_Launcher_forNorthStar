@@ -41,8 +41,8 @@ async function writeJson(filename, value) {
   finally {await fsp.rm(temporary,{force:true});}
 }
 class ClientBundleCache {
-  constructor({sourceRoot, cacheRoot, toolsDir, validateURL, progress = () => {}, transport=https}) {
-    this.sourceRoot = sourceRoot; this.cacheRoot = cacheRoot; this.toolsDir = toolsDir; this.validateURL = validateURL; this.progress = progress; this.transport=transport; this.pending = new Map();
+  constructor({sourceRoot, cacheRoot, toolsDir, validateURL, releaseProvider, progress = () => {}, transport=https}) {
+    this.sourceRoot = sourceRoot; this.cacheRoot = cacheRoot; this.toolsDir = toolsDir; this.validateURL = validateURL; this.releaseProvider=releaseProvider; this.progress = progress; this.transport=transport; this.pending = new Map();
   }
   async safeCachePath(filename, includeLeaf = true) {
     const base = path.resolve(this.cacheRoot), target = path.resolve(filename), relative = path.relative(base,target);
@@ -98,19 +98,7 @@ class ClientBundleCache {
     const pointer = path.join(this.cacheRoot,"updates",channel+".json");
     await this.safeCachePath(pointer);
     if (!fs.existsSync(pointer)) {
-      const manifest = validateManifest(JSON.parse(await fsp.readFile(path.join(this.sourceRoot,channel,"manifest.json"),"utf8")),channel);
-      const expectedDigest = sha(Buffer.from(JSON.stringify(manifest))), directory = path.join(this.cacheRoot,"bundled",channel+"-"+expectedDigest);
-      await this.safeCachePath(directory);
-      // A warm descriptor reads metadata only. The transaction engine validates
-      // the payload once in the same operation before using its bytes.
-      if (!fs.existsSync(directory)) await this.base(channel);
-      else {
-        const filename=path.join(directory,"manifest.json"), stat=await fsp.lstat(filename);
-        if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 8*1024*1024) throw Error("北极星内置缓存清单与来源不一致");
-        const cached=validateManifest(JSON.parse(await fsp.readFile(filename,"utf8")),channel);
-        if (sha(Buffer.from(JSON.stringify(cached)))!==expectedDigest) throw Error("北极星内置缓存清单与来源不一致");
-      }
-      return {directory,expectedDigest,preferSnapshot:true};
+      return this.defaultDescriptor(channel);
     }
     const stat = await fsp.lstat(pointer);
     if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 4096) throw Error("北极星更新缓存索引无效");
@@ -122,7 +110,39 @@ class ClientBundleCache {
     if (!manifestStat.isFile() || manifestStat.isSymbolicLink() || manifestStat.size > 8*1024*1024) throw Error("北极星更新缓存清单与索引不一致");
     const manifest=validateManifest(JSON.parse(await fsp.readFile(filename,"utf8")),channel);
     if (sha(Buffer.from(JSON.stringify(manifest)))!==value.directory) throw Error("北极星更新缓存清单与索引不一致");
+    if (channel === "cn") {
+      const baseline = validateManifest(JSON.parse(await fsp.readFile(path.join(this.sourceRoot,channel,"manifest.json"),"utf8")),channel);
+      // A shared download cache is not an installed client. Keep first CN
+      // deployment on the shipped GitHub release; installed snapshots are
+      // still preferred by the transaction engine and explicit updates bypass this.
+      if (manifest.version.replace(/^v/,"") !== baseline.version.replace(/^v/,"")) return this.defaultDescriptor(channel);
+    }
     return {directory,expectedDigest:value.directory,preferSnapshot:true};
+  }
+  async defaultDescriptor(channel) {
+    const manifest = validateManifest(JSON.parse(await fsp.readFile(path.join(this.sourceRoot,channel,"manifest.json"),"utf8")),channel);
+    const expectedDigest = sha(Buffer.from(JSON.stringify(manifest))), directory = path.join(this.cacheRoot,"bundled",channel+"-"+expectedDigest);
+    await this.safeCachePath(directory);
+    // A warm descriptor reads metadata only. The transaction engine validates
+    // the payload once in the same operation before using its bytes.
+    if (!fs.existsSync(directory)) {
+      if (fs.existsSync(path.join(this.sourceRoot,channel,"payload.zip"))) await this.base(channel);
+      else {
+        if (!this.releaseProvider) throw Error("北极星客户端资源未随启动器内置，且没有可用的云端下载源");
+        const release = await this.releaseProvider(channel);
+        if (!release) throw Error("未能获取所选频道的北极星客户端正式版本");
+        if (channel === "cn" && release.version?.replace(/^v/,"") !== manifest.version.replace(/^v/,"")) throw Error("国服北极星默认下载版本与 GitHub 分发清单不一致");
+        await this.update(release);
+        return this.descriptor(channel);
+      }
+    }
+    else {
+      const filename=path.join(directory,"manifest.json"), stat=await fsp.lstat(filename);
+      if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 8*1024*1024) throw Error("北极星内置缓存清单与来源不一致");
+      const cached=validateManifest(JSON.parse(await fsp.readFile(filename,"utf8")),channel);
+      if (sha(Buffer.from(JSON.stringify(cached)))!==expectedDigest) throw Error("北极星内置缓存清单与来源不一致");
+    }
+    return {directory,expectedDigest,preferSnapshot:true};
   }
   async download(release, target) {
     if (!this.validateURL(release.download_link,release.version,undefined,release.region)) throw Error("北极星更新地址与所选频道不匹配");

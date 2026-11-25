@@ -207,10 +207,12 @@ async function findGames(options = {}) {
 
 function selectGlobalGamePath(games, chinaPath) {
 	const china = normalizeGamePath(chinaPath);
+	let shared = false;
 	for (const candidate of uniquePaths(Array.isArray(games) ? games : [])) {
 		if (!china || !sameGamePath(candidate, china)) { return candidate; }
+		shared = candidate;
 	}
-	return false;
+	return shared;
 }
 
 async function findgame(options = {}) {

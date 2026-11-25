@@ -52,6 +52,19 @@ test("same family launch does zero copies and never invokes distribution provide
   const f = await readyFixture(), original = fsp.copyFile; let count = 0, providers = 0; fsp.copyFile = async (...args) => {count++; return original(...args);};
   try {const sw = f.engine({bundleProvider: async () => {providers++; throw Error("must not read bundle");}}); const result = await sw.ensure({gameRoot: f.root, channel: "cn", allowInstall: false}); assert.equal(result.strategy, "active-receipt"); assert.equal(count, 0); assert.equal(providers, 0);} finally {fsp.copyFile = original;}
 });
+
+test("GitHub 1.17.7 default keeps recognized CN 1.18 across launch and global round trip", async () => {
+  const f=await fixture(),original=await content(f.root);
+  const defaultCn=await bundle(path.join(f.out,"github-cn"),"cn","1.17.7");
+  const sw=f.engine({bundleProvider:async channel=>({directory:channel==="cn"?defaultCn:path.join(f.bundles,channel),preferSnapshot:true})});
+  const first=await sw.ensure({gameRoot:f.root,channel:"cn",allowInstall:false});
+  assert.equal(first.version,"1.18.0");assert.deepEqual(await content(f.root),original);
+  await sw.install({gameRoot:f.root,channel:"global"});
+  const back=await sw.ensure({gameRoot:f.root,channel:"cn",allowInstall:false});
+  assert.equal(back.version,"1.18.0");assert.deepEqual(await content(f.root),original);
+  const fresh=await fixture(null),install=fresh.engine({bundleProvider:async channel=>({directory:channel==="cn"?defaultCn:path.join(fresh.bundles,channel),preferSnapshot:true})});
+  assert.equal((await install.install({gameRoot:fresh.root,channel:"cn"})).version,"1.17.7");
+});
 test("hot directory rotation copies only small loader files and preserves personal data", async () => {
   const f = await readyFixture(), original = fsp.copyFile, before = await content(f.root); let coreCopies = 0;
   fsp.copyFile = async (source, target, ...args) => {if (/Northstar\.(Client|Custom|CustomServers)/i.test(source) || /Northstar\.(Client|Custom|CustomServers)/i.test(target)) coreCopies++; return original(source, target, ...args);};

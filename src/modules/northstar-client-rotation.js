@@ -4,31 +4,38 @@
 // Each rename is journalled before it is attempted. Recovery reverses only
 // recorded bytes, and refuses any unknown files instead of deleting them.
 module.exports = function rotationTools(engine, api) {
-  const {fsp, path, crypto, key, hash, samePath, inside, lstat, safeAncestors, fileInfo, equalInfo, readJson, writeJson, safeCopy, validateManifest, validateBundle, CORE_DIRS, ROOT_FILES, CHANNELS, ID, HASH, MAX_FILES, MAX_FILE_BYTES} = api;
+  const {fsp, path, crypto, key, hash, samePath, inside, lstat, safeAncestors, fileInfo, equalInfo, readJson, writeJson, safeCopy, validateManifest, validateBundle, mapLimit, CORE_DIRS, ROOT_FILES, CHANNELS, ID, HASH, MAX_FILES, MAX_FILE_BYTES} = api;
   const slotRoot = context => path.join(context.root, ".tfx", "client-slots", hash(Buffer.from(key(context.profile))).slice(0, 24));
   const slotPath = (context, channel) => path.join(slotRoot(context), channel);
   const corePath = value => CORE_DIRS.some(directory => key(value).startsWith(key(directory) + "/"));
   const relative = (context, absolute) => path.relative(context.root, absolute).split(path.sep).join("/");
-  async function guard(context, absolute) {
+  async function guard(context, absolute, verifiedDirs = null) {
     if (!inside(context.root, absolute) || samePath(context.root, absolute)) throw Error("北极星轮换路径超出游戏目录");
-    return safeAncestors(context.root, relative(context, absolute));
+    return safeAncestors(context.root, relative(context, absolute), true, verifiedDirs);
   }
   async function scanDirectory(context, absolute, content = true) {
-    await guard(context, absolute); const stat = await lstat(absolute); if (!stat) return null;
+    const verifiedDirs = new Set();
+    await guard(context, absolute, verifiedDirs); const stat = await lstat(absolute); if (!stat) return null;
     if (!stat.isDirectory() || stat.isSymbolicLink()) throw Error("北极星轮换目录不是普通文件夹");
-    const result = [];
+    verifiedDirs.add(key(absolute));
+    const entries = [];
     async function visit(current, prefix) {
-      await guard(context, current);
+      await guard(context, current, verifiedDirs);
+      verifiedDirs.add(key(current));
       for (const entry of await fsp.readdir(current, {withFileTypes: true})) {
         const child = path.join(current, entry.name), name = prefix ? prefix + "/" + entry.name : entry.name;
         if (entry.isSymbolicLink()) throw Error("北极星轮换目录包含链接，已停止切换");
         if (entry.isDirectory()) await visit(child, name);
-        else if (entry.isFile()) {const stat = await lstat(child); result.push({path: name, ...(content ? await fileInfo(child) : {}), stamp: {size: stat.size, mtimeMs: stat.mtimeMs, ctimeMs: stat.ctimeMs, ino: stat.ino, dev: stat.dev}});}
+        else if (entry.isFile()) {entries.push({child, name});}
         else throw Error("北极星轮换目录包含特殊文件");
-        if (result.length > MAX_FILES) throw Error("北极星轮换目录文件过多");
+        if (entries.length > MAX_FILES) throw Error("北极星轮换目录文件过多");
       }
     }
-    await visit(absolute, ""); return result;
+    await visit(absolute, "");
+    return mapLimit(entries, 16, async ({child, name}) => {
+      const stat = await lstat(child);
+      return {path: name, ...(content ? await fileInfo(child) : {}), stamp: {size: stat.size, mtimeMs: stat.mtimeMs, ctimeMs: stat.ctimeMs, ino: stat.ino, dev: stat.dev}};
+    });
   }
   function sameDirectory(actual, expected) {
     if (actual === null) return expected === null;
@@ -51,10 +58,14 @@ module.exports = function rotationTools(engine, api) {
     if (complete) {
       const cores = await Promise.all(CORE_DIRS.map(core => lstat(path.join(directory, "payload", ...core.split("/")))));
       if (cores.every(stat => stat === null)) return null; // Consumed active slot; a verified snapshot can initialize it again.
-      const stamps = new Map();
-      for (const file of bundle.files.values()) {const stat = await lstat(await guard(context, file.source)); if (!stat?.isFile() || stat.isSymbolicLink()) throw Error("北极星轮换客户端文件缺失或损坏，请重新安装"); stamps.set(key(file.path), {size: stat.size, mtimeMs: stat.mtimeMs, ctimeMs: stat.ctimeMs, ino: stat.ino, dev: stat.dev});}
+      const stamps = new Map(), verifiedDirs = new Set();
+      await mapLimit([...bundle.files.values()], 16, async file => {
+        const stat = await lstat(await guard(context, file.source, verifiedDirs));
+        if (!stat?.isFile() || stat.isSymbolicLink()) throw Error("北极星轮换客户端文件缺失或损坏，请重新安装");
+        stamps.set(key(file.path), {size: stat.size, mtimeMs: stat.mtimeMs, ctimeMs: stat.ctimeMs, ino: stat.ino, dev: stat.dev});
+      });
       await validateBundle(directory, channel);
-      for (const core of CORE_DIRS) {
+      await Promise.all(CORE_DIRS.map(async core => {
         const expected = manifest.files.filter(file => key(file.path).startsWith(key(core) + "/")).map(file => ({...file, path: file.path.slice(core.length + 1)}));
         const actual = await scanDirectory(context, path.join(directory, "payload", ...core.split("/")), false), names = new Set(expected.map(file => key(file.path)));
         if (!actual || actual.length !== expected.length || actual.some(file => !names.has(key(file.path)))) throw Error("北极星轮换客户端被外部修改，已停止切换");
@@ -62,7 +73,7 @@ module.exports = function rotationTools(engine, api) {
           const filename = key(core + "/" + file.path), prior = stamps.get(filename);
           if (!prior || Object.keys(prior).some(name => file.stamp[name] !== prior[name])) throw Error("北极星轮换客户端在校验时被外部修改");
         }
-      }
+      }));
       for (const file of bundle.files.values()) file.stamp = stamps.get(key(file.path));
     }
     return bundle;
@@ -86,7 +97,7 @@ module.exports = function rotationTools(engine, api) {
     try {
       const space = await fsp.statfs(staging), needed = bundle.manifest.files.reduce((sum, file) => sum + file.size, 0);
       if (Number(space.bavail) * Number(space.bsize) < needed + 32 * 1024 * 1024) throw Error("游戏磁盘空间不足，无法准备第二套北极星客户端");
-      for (const file of bundle.files.values()) await safeCopy(file.source, path.join(staging, "payload", ...file.path.split("/")), file);
+      await mapLimit([...bundle.files.values()], 8, file => safeCopy(file.source, path.join(staging, "payload", ...file.path.split("/")), file));
       const manifest = {...bundle.manifest, provenance: {kind: "private-client-slot", gameRoot: context.root, profile: context.profile, initializedAt: new Date().toISOString(), sourceDigest: bundle.digest, originalProvenance: bundle.manifest.provenance || null}};
       await writeJson(path.join(staging, "manifest.json"), manifest); await validateBundle(staging, manifest.channel);
       if (retire) await fsp.rename(destination, retire);

@@ -113,6 +113,7 @@ class SkinImporter{
       await this.discardMod();
       const source=await readSource();if(!source)return {ok:true,cancelled:true,package:null};
       if(typeof source!=="string"||!path.isAbsolute(source))throw Error(messages.source);
+      this.progress(event,{stage:"reading",phase:"reading",sourceName:path.basename(source)});
       await assertUnlinkedAncestors(source,messages.unsafe);
       const stat=await fsp.lstat(source);if(stat.isSymbolicLink()||!stat.isFile()&&!stat.isDirectory())throw Error(messages.unsafe);
       let entries,loose=false,zip=false;
@@ -151,6 +152,7 @@ class SkinImporter{
         if(icepickDefinitionPath)try{icepickDefinition=JSON.parse(await fsp.readFile(icepickDefinitionPath,"utf8"));}catch{}
         if(isIcepickDefinition(icepickDefinition)){
           if(typeof this.icepick?.installSource!=="function")throw Error("Icepick 安装服务暂不可用，请重新启动启动器后再试。");
+			this.progress(event,{stage:"installing",phase:"installing",sourceName});
 			const parent=this.BrowserWindow?.fromWebContents?.(event?.sender);
           const icepickName=String(icepickDefinition.ApiId||icepickDefinition.Name||baseName);
 			const installed=await this.icepick.installSource(inspected.plan[0].directory,icepickName,{parent});

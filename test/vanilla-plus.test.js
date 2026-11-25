@@ -95,3 +95,16 @@ test("the package contains the expected Mod identity and exact original font has
     assert.equal(crypto.createHash("sha256").update(bytes).digest("hex"),manifest.files.find(item => item.path === file).sha256);
   }
 });
+test("VanillaPlus UI scripts use the Global 1.31.13 mod-information APIs", async () => {
+  const paths = [
+    "mods/NP.VanillaPlus/mod/scripts/vscripts/ui/ns_menu_modmenu.nut",
+    "mods/NP.VanillaPlus/mod/scripts/vscripts/ui/menu_set_vanillaplus_version.nut"
+  ];
+  const supported = new Set(["NSGetModsInformation","NSGetModInformation","NSSetModEnabled","NSReloadMods"]);
+  const used = new Set();
+  for (const relative of paths) {
+    const source = await fsp.readFile(path.join(bundleRoot,"payload",relative),"utf8");
+    for (const match of source.matchAll(/\b(NS[A-Za-z0-9_]+)\s*\(/g)) used.add(match[1]);
+  }
+  assert.deepEqual([...used].filter(name => !supported.has(name)).sort(),[]);
+});

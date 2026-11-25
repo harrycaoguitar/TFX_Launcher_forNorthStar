@@ -215,7 +215,7 @@ void function OnModButtonPressed( var button )
 		CoreModToggleDialog( modName )
 	else
 	{
-		NSSetModEnabled( modName, !NSIsModEnabled( modName ) )
+		NSSetModEnabled( modName, mod.version, !mod.enabled )
 
 		// Refresh the cached state through the Northstar 1.18 name-based API.
 		UpdateList()
@@ -292,17 +292,17 @@ void function DisableMod()
 {
 	modData mod = file.mods[ int ( Hud_GetScriptID( Hud_GetParent( file.currentButton ) ) ) + file.scrollOffset - 1 ].mod
 	string modName = mod.name
-	NSSetModEnabled( modName, false )
+	NSSetModEnabled( modName, mod.version, false )
 	UpdateList()
 }
 
 array<string> function GetEnabledModsArray()
 {
 	array<string> enabledMods
-	foreach ( string mod in NSGetModNames() )
+	foreach ( ModInfo mod in NSGetModsInformation() )
 	{
-		if ( NSIsModEnabled( mod ) )
-			enabledMods.append( mod )
+		if ( mod.enabled )
+			enabledMods.append( mod.name )
 	}
 	return enabledMods
 }
@@ -325,24 +325,25 @@ void function UpdateList()
 
 void function RefreshMods()
 {
-	array<string> mods = NSGetModNames()
+	array<ModInfo> mods = NSGetModsInformation()
 	file.mods.clear()
 
 	bool reverse = GetConVarBool( "modlist_reverse" )
 
-	int lastLoadPriority = reverse ? NSGetModLoadPriority( mods.top() ) + 1 : -1
+	int lastLoadPriority = reverse ? mods.top().loadPriority + 1 : -1
 	string searchTerm = Hud_GetUTF8Text( Hud_GetChild( file.menu, "BtnModsSearch" ) ).tolower()
 
 	for ( int i = reverse ? mods.len() - 1 : 0;
 		reverse ? ( i >= 0 ) : ( i < mods.len() );
 		i += ( reverse ? -1 : 1) )
 	{
-		string modName = mods[i]
-		bool enabled = NSIsModEnabled( modName )
-		bool required = NSIsModRequiredOnClient( modName )
+		ModInfo info = mods[i]
+		string modName = info.name
+		bool enabled = info.enabled
+		bool required = info.requiredOnClient
 
 		// Do not display remote mods
-		if ( NSIsModRemote( modName ) )
+		if ( info.isRemote )
 			continue
 
 		if ( searchTerm.len() && modName.tolower().find( searchTerm ) == null )
@@ -368,7 +369,7 @@ void function RefreshMods()
 				break
 		}
 
-		int pr = NSGetModLoadPriority( modName )
+		int pr = info.loadPriority
 
 		if ( reverse ? pr < lastLoadPriority : pr > lastLoadPriority )
 		{
@@ -385,13 +386,13 @@ void function RefreshMods()
 
 		modData mod
 		mod.name = modName
-		mod.version = NSGetModVersionByModName( modName )
-		mod.description = NSGetModDescriptionByModName( modName )
-		mod.downloadLink = NSGetModDownloadLinkByModName( modName )
+		mod.version = info.version
+		mod.description = info.description
+		mod.downloadLink = info.downloadLink
 		mod.loadPriority = pr
 		mod.enabled = enabled
 		mod.requiredOnClient = required
-		mod.conVars = NSGetModConvarsByModName( modName )
+		mod.conVars = info.conVars
 		panelContent c
 		c.mod = mod
 

@@ -4,8 +4,10 @@ const {execFile} = require("child_process");
 const {EventEmitter} = require("events");
 
 const events = new EventEmitter();
-const GAME_NAMES = ["northstarlauncher.exe", "titanfall2.exe", "titanfall2-unpacked.exe"];
+const GAME_NAMES = ["northstarlauncher.exe", "titanfall.exe", "titanfall2.exe", "titanfall2-unpacked.exe"];
 let inFlight = null, timer = null, fastUntil = 0, lastGameState;
+let lastCleanSnapshot = null, lastCleanAt = 0;
+let pollGeneration = 0;
 
 function parseCsvLine(line) {
   const fields = [];
@@ -43,12 +45,16 @@ function parseProcesses(stdout) {
   return processes;
 }
 function contains(snapshot, names) {return snapshot.ok && snapshot.processes.some(process => names.includes(process.image));}
-function snapshot() {
+function snapshot(options) {
+  const maxAgeMs = Number(options?.maxAgeMs) || 0;
+  if (maxAgeMs > 0 && lastCleanSnapshot && (Date.now() - lastCleanAt) <= maxAgeMs) {
+    return Promise.resolve(lastCleanSnapshot);
+  }
   // Guards, UI polling, and launch confirmation share one in-flight OS query.
   if (inFlight) return inFlight;
   const request = new Promise(resolve => {
     try {
-      const script = "$ErrorActionPreference = 'Stop'; $names = @('titanfall2.exe','titanfall2-unpacked.exe','northstarlauncher.exe','origin.exe','eadesktop.exe'); try { Get-CimInstance Win32_Process | Where-Object { $names -contains $_.Name.ToLowerInvariant() } | Select-Object @{n='image';e={$_.Name}}, @{n='pid';e={$_.ProcessId}}, @{n='executablePath';e={$_.ExecutablePath}} | ConvertTo-Json -Compress } catch { [Console]::Error.WriteLine($_.Exception.Message); exit 1 }";
+      const script = "$ErrorActionPreference = 'Stop'; try { $procs = @(Get-Process -Name titanfall,titanfall2,titanfall2-unpacked,northstarlauncher,origin,eadesktop -ErrorAction SilentlyContinue); if (-not $procs.Count) { '[]' } else { $needCim = @($procs | Where-Object { -not $_.Path -and $_.Name -in @('titanfall','titanfall2','titanfall2-unpacked','northstarlauncher') }); $cimMap = @{}; if ($needCim.Count) { $filter = ($needCim.Id | ForEach-Object { \"ProcessId=$_\" }) -join ' OR '; foreach ($c in @(Get-CimInstance Win32_Process -Filter $filter)) { $cimMap[[int]$c.ProcessId] = $c.ExecutablePath } }; @($procs | ForEach-Object { $p = $_.Path; if (-not $p -and $cimMap.ContainsKey([int]$_.Id)) { $p = $cimMap[[int]$_.Id] }; [pscustomobject]@{ image = ($_.Name + '.exe'); pid = $_.Id; executablePath = $p } }) | ConvertTo-Json -Compress } } catch { [Console]::Error.WriteLine($_.Exception.Message); exit 1 }";
       execFile("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], {windowsHide: true, timeout: 8000, maxBuffer: 2 * 1024 * 1024}, (error, stdout = "") => {
         resolve({ok: !error, processes: error ? [] : parseProcesses(stdout)});
       });
@@ -61,6 +67,13 @@ function snapshot() {
       if (window.webContents && !window.isDestroyed?.() && !window.webContents.isLoading?.()) window.send("game-process-snapshot", value);
     } catch (_) {}
     const gameState = value.ok && value.processes.some(process => GAME_NAMES.includes(process.image));
+    if (value.ok && !gameState) {
+      lastCleanSnapshot = value;
+      lastCleanAt = Date.now();
+    } else {
+      lastCleanSnapshot = null;
+      lastCleanAt = 0;
+    }
     // Preserve the last UI state if tasklist temporarily fails.
     if (value.ok && gameState !== lastGameState) {
       // A query may finish before the renderer has loaded its IPC listeners.
@@ -80,24 +93,28 @@ function snapshot() {
 }
 function interval() {
   if (Date.now() < fastUntil) return 1000;
-  try {const window = win(); if (window.isMinimized?.() || window.isVisible?.() === false) return 15000;} catch (_) {}
-  return 5000;
+  try {const window = win(); if (window.isMinimized?.() || window.isVisible?.() === false) return 60000;} catch (_) {}
+  return 20000;
 }
 function schedule(delay = interval()) {
+  const generation = ++pollGeneration;
   clearTimeout(timer);
-  timer = setTimeout(async () => {await snapshot(); schedule();}, delay);
+  timer = setTimeout(async () => {
+    await snapshot();
+    if (generation === pollGeneration) schedule();
+  }, delay);
   timer.unref?.();
 }
-schedule(1000);
+schedule(3000);
 
 module.exports = {
   snapshot,
   onSnapshot(listener) {events.on("snapshot", listener); return () => events.off("snapshot", listener);},
-  speedUp(until) {fastUntil = until; schedule(until ? 100 : interval());},
-  game: async () => contains(await snapshot(), GAME_NAMES),
+  speedUp(until) {lastCleanSnapshot = null; lastCleanAt = 0; fastUntil = until; schedule(until ? 100 : interval());},
+  game: async (maxAgeMs = 0) => contains(await snapshot(maxAgeMs ? {maxAgeMs} : undefined), GAME_NAMES),
   origin: async () => contains(await snapshot(), ["origin.exe", "eadesktop.exe"]),
   titanfall: async () => contains(await snapshot(), ["titanfall2.exe", "titanfall2-unpacked.exe"]),
   northstar: async () => contains(await snapshot(), ["northstarlauncher.exe"]),
   parseProcesses,
-  stop() {clearTimeout(timer); timer = null;}
+  stop() {++pollGeneration; clearTimeout(timer); timer = null;}
 };

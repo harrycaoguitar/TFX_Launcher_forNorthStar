@@ -3,12 +3,13 @@
 // This record deliberately contains facts, not log text or a guessed diagnosis.
 // Keep a fixed schema so paths, arguments, mod names and account data cannot
 // accidentally enter the persisted record or a shared diagnostic export.
+const {CONNECTION_CODES} = require("./northstar-health");
 const {randomUUID} = require("crypto");
 const STAGES = Object.freeze(["preflight", "client", "skins", "ea", "spawn", "game", "northstar", "confirmation"]);
 const STATUSES = new Set(["pending", "active", "observed", "failed", "unconfirmed"]);
 const OUTCOMES = new Set(["launching", "confirmed", "preflight-failed", "client-failed", "skins-failed", "ea-failed", "spawn-failed", "game-closed", "northstar-not-ready", "official-mod-not-ready", "timeout", "unknown"]);
 const ACTIONS = new Set(["retry", "settings", "client", "platform", "mods", "issue"]);
-const EVIDENCE = new Set(["EA_NOT_INSTALLED", "EA_START_FAILED", "EA_START_TIMEOUT", "EA_PROCESS_QUERY_FAILED", "GAME_ALREADY_RUNNING", "GAME_DIRECTORY_INVALID", "GAME_ASSETS_MISSING", "GAME_FILE_UNREADABLE", "PROCESS_QUERY_FAILED", "SELECTION_CHANGED", "SKIN_OPERATION_BUSY", "NORTHSTAR_NOT_READY", "NORTHSTAR_CORE_DISABLED", "NORTHSTAR_CORE_DUPLICATE", "CLEAN_PROXY_RECOVERY", "OFFICIAL_MOD_NOT_READY", "VANILLA_CLIENT_NOT_INSTALLED", "VANILLA_RUNTIME_OUTDATED", "LAUNCH_EARLY_EXIT", "LAUNCHER_EARLY_EXIT", "LAUNCH_TIMEOUT", "ENOENT", "EACCES", "UNKNOWN"]);
+const EVIDENCE = new Set(["EA_NOT_INSTALLED", "EA_START_FAILED", "EA_START_TIMEOUT", "EA_PROCESS_QUERY_FAILED", "GAME_ALREADY_RUNNING", "NORTHSTAR_OTHER_INSTANCE", "GAME_DIRECTORY_INVALID", "GAME_ASSETS_MISSING", "GAME_FILE_UNREADABLE", "PROCESS_QUERY_FAILED", "SELECTION_CHANGED", "SKIN_OPERATION_BUSY", "NORTHSTAR_NOT_READY", "NORTHSTAR_CORE_DISABLED", "NORTHSTAR_CORE_DUPLICATE", "CLEAN_PROXY_RECOVERY", "OFFICIAL_MOD_NOT_READY", "VANILLA_CLIENT_NOT_INSTALLED", "VANILLA_RUNTIME_OUTDATED", "LAUNCH_EARLY_EXIT", "LAUNCHER_EARLY_EXIT", "LAUNCH_TIMEOUT", "ENOENT", "EACCES", "UNKNOWN"]);
 const MAX_MS = 24 * 60 * 60 * 1000;
 function duration(value) {return Number.isFinite(value) ? Math.max(0, Math.min(MAX_MS, Math.round(value))) : null;}
 function version(value) {return typeof value === "string" && /^\d{1,5}\.\d{1,5}\.\d{1,5}(?:-(?:alpha|beta|rc)\.\d{1,5})?$/.test(value) ? value : null;}
@@ -20,6 +21,7 @@ function sanitizeReport(input) {
     if (STAGES.includes(item?.code) && STATUSES.has(item.status)) stages.set(item.code, {code:item.code, status:item.status, elapsedMs:duration(item.elapsedMs)});
   }
   return {
+    ...(CONNECTION_CODES.has(input.connection?.code) ? {connection:{code:input.connection.code, authenticated:input.connection.authenticated === true}} : {}),
     schema:1, id:input.id, appVersion:version(input.appVersion), gameVersion:input.gameVersion,
     officialMods:input.gameVersion === "vanilla" && input.officialMods === true,
     region:input.gameVersion === "northstar" && ["cn", "global"].includes(input.region) ? input.region : null,
@@ -37,7 +39,7 @@ function failureOutcome(error, phase) {
   const code = EVIDENCE.has(error?.code) ? error.code : "UNKNOWN";
   const base = {causeKnown:false, evidenceCode:code, actions:["retry", "issue"]};
   if (["GAME_DIRECTORY_INVALID", "GAME_ASSETS_MISSING", "GAME_FILE_UNREADABLE"].includes(code)) return {...base, code:"preflight-failed", causeKnown:true, actions:["settings", "client", "issue"]};
-  if (["GAME_ALREADY_RUNNING", "SELECTION_CHANGED", "SKIN_OPERATION_BUSY"].includes(code)) return {...base, code:"preflight-failed", causeKnown:true, actions:["retry", "settings"]};
+  if (["GAME_ALREADY_RUNNING", "NORTHSTAR_OTHER_INSTANCE", "SELECTION_CHANGED", "SKIN_OPERATION_BUSY"].includes(code)) return {...base, code:"preflight-failed", causeKnown:true, actions:["retry", "settings"]};
   if (code === "CLEAN_PROXY_RECOVERY") return {...base, code:"preflight-failed", causeKnown:true, actions:["settings", "retry"]};
   if (code.startsWith("EA_")) return {...base, code:"ea-failed", causeKnown:code === "EA_NOT_INSTALLED", actions:["platform", "retry", "issue"]};
   if (["NORTHSTAR_NOT_READY", "NORTHSTAR_CORE_DISABLED", "NORTHSTAR_CORE_DUPLICATE"].includes(code)) return {...base, code:"northstar-not-ready", causeKnown:code !== "NORTHSTAR_NOT_READY", actions:["client", "mods", "issue"]};
@@ -96,6 +98,12 @@ class LaunchDiagnostics {
       (["titanfall2.exe", "titanfall2-unpacked.exe"].includes(String(item.image).toLowerCase()) && (!session.bootstrapHandoff || String(item.pid) !== session.childPid) ||
        String(item.image).toLowerCase() === "northstarlauncher.exe" && String(item.pid) === session.childPid && (session.entered || session.ready)));
     if (game) this.stage("game", "observed");
+  }
+  connection(value) {
+    if (!this.current || this.current.gameVersion !== "northstar" || !CONNECTION_CODES.has(value?.code)) return;
+    if (this.current.connection?.code === value.code && this.current.connection.authenticated === value.authenticated) return;
+    this.current.connection = {code:value.code, authenticated:value.authenticated === true};
+    this.commit();
   }
   finish(error) {
     if (!this.current || this.current.state !== "starting") return;

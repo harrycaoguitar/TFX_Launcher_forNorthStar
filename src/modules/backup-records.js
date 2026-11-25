@@ -4,7 +4,7 @@
 const fs = require("fs"), fsp = fs.promises, path = require("path"), crypto = require("crypto");
 const validId = value => typeof value === "string" && /^[a-f0-9-]{36}$/.test(value);
 const terminalStates = new Set(["restored", "rolled-back", "cancelled"]);
-const key = value => path.resolve(value).toLowerCase();
+const {sameRoot} = require("./game-roots");
 const sha256 = data => crypto.createHash("sha256").update(data).digest("hex");
 
 function deletionPolicy(manifest, {requiredBoundary = false, referenced = false} = {}) {
@@ -46,7 +46,7 @@ async function readRecord(root, id, gamePath, filename = "manifest.json", {allow
   }finally{await handle.close();}
   await assertUnlinkedAncestors(file);
   const manifest = JSON.parse(bytes.toString("utf8"));
-  if (manifest.version !== 1 || manifest.id !== id || typeof manifest.gamePath !== "string" || !path.isAbsolute(manifest.gamePath) || !gamePath || (!allowOtherGames && key(manifest.gamePath) !== key(gamePath))) throw Error("备份与当前游戏目录不匹配");
+  if (manifest.version !== 1 || manifest.id !== id || typeof manifest.gamePath !== "string" || !path.isAbsolute(manifest.gamePath) || !gamePath || (!allowOtherGames && !sameRoot(manifest.gamePath, gamePath))) throw Error("备份与当前游戏目录不匹配");
   return {dir,file,manifest,sha256:sha256(bytes)};
 }
 

@@ -94,7 +94,7 @@ function createJournalReader({ddsDir, vtfDir, switchDir}) {
   };
 }
 const root = path.join(app.getPath("appData"), "fold-launcher"), baseDir = path.join(root, "dds");
-const protection = new DdsProtection({baseDir, documentsPath: () => app.getPath("documents"), isGameRunning: () => isRunning.game(),
+const protection = new DdsProtection({baseDir, documentsPath: () => app.getPath("documents"), isGameRunning: () => isRunning.game(1500),
   getActiveBackups: createJournalReader({ddsDir: baseDir, vtfDir: path.join(root, "vtf"), switchDir: path.join(root, "skin-switch")})});
 // Pure reader factory is exported for isolated filesystem verification.
 protection.createJournalReader = createJournalReader;

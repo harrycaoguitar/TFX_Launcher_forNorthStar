@@ -214,12 +214,17 @@ async function targetLocation(targetRoot) {
   return {root: path.join(fs.realpathSync.native(parent), path.basename(absolute)), exists: false};
 }
 
-async function inspectInstallTarget({sourceRoot, targetRoot, getFileSystem = getVolumeFileSystem} = {}) {
+async function inspectInstallTarget({sourceRoot, targetRoot, getFileSystem = getVolumeFileSystem, allowSame = false} = {}) {
   if (typeof sourceRoot !== "string" || typeof targetRoot !== "string" || !path.isAbsolute(sourceRoot) || !path.isAbsolute(targetRoot)) {
     throw error("GLOBAL_TARGET_INVALID", "请选择绝对路径形式的国服和全球服目录。");
   }
   const source = resolveExistingRoot(sourceRoot, "GLOBAL_SOURCE_INVALID");
   const target = await targetLocation(targetRoot);
+  if (lower(source) === lower(target.root)) {
+    if (!allowSame) ensureDisjoint(source, target.root);
+    if (!(await hasCompleteGameRoot(source))) throw error("GLOBAL_SOURCE_INVALID", "国服目录缺少完整的 Titanfall 2 游戏文件。");
+    return {root: target.root, ready: true, installable: false, owned: false, shared: true};
+  }
   ensureDisjoint(source, target.root);
   if (target.exists && !(await isEmptyDirectory(target.root))) {
     const marker = await readOwnedMarker(target.root);
@@ -235,8 +240,8 @@ async function isEmptyOrMissingDirectory(folder) {
 }
 
 async function installRoot({sourceRoot, targetRoot, markerName, markerKind, getFileSystem = getVolumeFileSystem, getAvailableBytes: readSpace = getAvailableBytes, copyTree: copy = copyTree, onProgress = () => {}} = {}) {
-  const inspected = await inspectInstallTarget({sourceRoot, targetRoot, getFileSystem});
-  if (inspected.ready) return {root: inspected.root, reused: true, owned: inspected.owned};
+  const inspected = await inspectInstallTarget({sourceRoot, targetRoot, getFileSystem, allowSame: markerKind === "tfx-private-global-root"});
+  if (inspected.ready) return {root: inspected.root, reused: true, owned: inspected.owned, ...(inspected.shared ? {shared: true} : {})};
   const source = resolveExistingRoot(sourceRoot, "GLOBAL_SOURCE_INVALID"), target = inspected.root;
   const plan = await createCopyPlan(source);
   const available = await readSpace(inspected.installable && fs.existsSync(target) ? target : path.dirname(target));

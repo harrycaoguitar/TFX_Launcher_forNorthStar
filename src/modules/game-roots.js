@@ -2,7 +2,7 @@
 
 const fs = require("fs"), path = require("path");
 const findgame = require("./findgame");
-const GAME_IMAGES = new Set(["titanfall2.exe", "titanfall2-unpacked.exe", "northstarlauncher.exe"]);
+const GAME_IMAGES = new Set(["titanfall.exe", "titanfall2.exe", "titanfall2-unpacked.exe", "northstarlauncher.exe"]);
 
 function sameRoot(left, right) {
   if (typeof left !== "string" || typeof right !== "string" || !left || !right) return false;
@@ -28,14 +28,6 @@ function resolveGameRoot(conf, {gameVersion = "northstar", region = conf?.norths
     error.code = selectedRegion === "global" && gameVersion !== "vanilla" ? "GLOBAL_GAME_ROOT_INVALID" : "GAME_DIRECTORY_INVALID";
     throw error;
   }
-  if (selectedRegion === "global" && gameVersion !== "vanilla") {
-    const chinaRoot = findgame.validateGamePath(conf?.gamepath);
-    if (chinaRoot && sameRoot(root, chinaRoot)) {
-      const error = Error("国际服必须使用与国服不同的游戏目录。");
-      error.code = "GLOBAL_GAME_ROOT_SAME_AS_CHINA";
-      throw error;
-    }
-  }
   return root;
 }
 
@@ -56,8 +48,13 @@ function gameRootForServer(conf, server) {
     : resolveGameRoot(conf, {gameVersion: "northstar", region: server === "global" ? "global" : "cn"});
 }
 
+function profileServer(conf) {
+  const server = conf?.modProfileServer;
+  return ["cn", "global", "official"].includes(server) ? server : conf?.northstarRegion === "global" ? "global" : "cn";
+}
+
 function gameRootForProfile(conf) {
-  return gameRootForServer(conf, conf?.modProfileServer);
+  return gameRootForServer(conf, profileServer(conf));
 }
 
 function serverTransitionRoots(previous, next) {
@@ -114,4 +111,4 @@ function hasGame(snapshot, root) {
   return matching === null || matching.length > 0;
 }
 
-module.exports = {resolveGameRoot, gameRootForServer, gameRootForProfile, serverTransitionRoots, captureLaunchContext, withLaunchRoot, roots, sameRoot, processBelongsToRoot, processesForRoot, hasGame, GAME_IMAGES};
+module.exports = {resolveGameRoot, gameRootForServer, gameRootForProfile, profileServer, serverTransitionRoots, captureLaunchContext, withLaunchRoot, roots, sameRoot, processBelongsToRoot, processesForRoot, hasGame, GAME_IMAGES};

@@ -45,12 +45,12 @@ function normalizePayload(payload, region) {
   return {servers, truncated: payload.length > MAX_SERVERS, reportedCount: payload.length};
 }
 
-async function fetchPayload(source, options = {}) {
+async function fetchOnce(source, options) {
   try {
     const host = new URL(source.url).hostname;
     const result = await requestBuffer(source.url, {
       ...options, allowURL: url => url.hostname === host,
-      timeoutMs: 10000, maxBytes: MAX_BYTES,
+      maxBytes: MAX_BYTES,
       headers: {Accept: "application/json", "User-Agent": "TFX server-list"}
     });
     try { return JSON.parse(result.bytes.toString("utf8")); }
@@ -59,6 +59,16 @@ async function fetchPayload(source, options = {}) {
     const code = {TIMEOUT: "timeout", RESPONSE_TOO_LARGE: "too-large", HTTP_ERROR: "http", RATE_LIMIT: "http"}[error.code];
     if (code) error.code = code;
     throw error;
+  }
+}
+
+async function fetchPayload(source, options = {}) {
+  const timeoutMs = options.timeoutMs ?? (source.region === 'global' ? 8500 : 10000);
+  const fetch = () => fetchOnce(source, {...options, timeoutMs});
+  try {return await fetch();}
+  catch (error) {
+    if (source.region !== 'global' || !['timeout','NETWORK','TRUNCATED'].includes(error.code)) throw error;
+    return fetch();
   }
 }
 

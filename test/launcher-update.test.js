@@ -115,6 +115,18 @@ test("release without asset opens notes but rejects download",async()=>{
  const data={...release(),assets:[]},opened=[];const updater=createUpdater({currentVersion,transport:mockTransport([{release:data}]),openExternal:async url=>opened.push(url)});await updater.check();assert.equal((await updater.open({kind:"download"})).errorCode,"NO_LINK");assert.equal((await updater.open({kind:"release"})).ok,true);assert.equal(opened[0],data.html_url);
 });
 
-test("registration exposes only check/open handlers",()=>{
- const handlers=new Map();register({ipcMain:{handle:(name,callback)=>handlers.set(name,callback)},shell:{openExternal:async()=>{}},currentVersion});assert.deepEqual([...handlers.keys()],["launcher-update-check","launcher-update-open"]);
+test("installation uses only the verified official setup selected by a fresh check",async()=>{
+ const data=release();
+ const name="TFX-Launcher-1.0.0-Setup.exe";
+ data.assets.push({name,size:123,state:"uploaded",digest:"sha256:"+"a".repeat(64),browser_download_url:`https://github.com/${REPOSITORY}/releases/download/${data.tag_name}/${name}`});
+ const observed=[],updater=createUpdater({currentVersion,transport:mockTransport([{release:data}]),installSetup:async setup=>observed.push(setup)});
+ assert.equal((await updater.install({version:data.tag_name})).ok,false);
+ assert.equal((await updater.check()).canInstall,true);
+ assert.equal((await updater.install({version:"9.9.9"})).ok,false);
+ assert.equal((await updater.install({version:data.tag_name,url:"https://invalid.example/payload.exe"})).ok,true);
+ assert.deepEqual(observed,[{url:data.assets.at(-1).browser_download_url,name,size:123,digest:"a".repeat(64)}]);
+});
+
+test("the update bridge exposes explicit check, open and install handlers",()=>{
+ const handlers=new Map();register({ipcMain:{handle:(name,callback)=>handlers.set(name,callback)},shell:{openExternal:async()=>{}},currentVersion});assert.deepEqual([...handlers.keys()],["launcher-update-check","launcher-update-open","launcher-update-install"]);
 });

@@ -12,7 +12,7 @@ test('local document begins loading before feature imports and startup IPC waits
  vm.runInNewContext(fs.readFileSync(file,'utf8'),{__dirname:path.dirname(file),process:{argv:[],chdir(){},on(){}},setTimeout,require:id=>{
   if(id==='path')return path;if(id==='electron')return{app,BrowserWindow:Window,screen:{getPrimaryDisplay(){return{workAreaSize:{width:2000,height:1200}};}},ipcMain:{}};
   if(id==='fs')return{existsSync(){return false;}};if(id==='./modules/settings')return settings;if(id==='./locale')return{normalize:v=>v};if(id==='./lang')return{defaultLocale:'en-US'};if(id==='./modules/console')return{error(){}};if(id==='./modules/window-move')return()=>{};if(id==='./win')return{set(){}};if(id==='../package.json')return{version:'1.0.1'};
-  order.push(id);if(id==='./modules/skin-switch')return{installEngines(){order.push('guards-installed');}};if(id==='./modules/skin-import'||id==='./modules/weapon-library'||id==='./modules/server-list'||id==='./modules/launcher-update')return{register(){}};return{};
+  order.push(id);if(id==='./modules/launcher-version')return()=> '1.1.1';if(id==='./modules/logger')return{install:()=>({write(){}})};if(id==='./modules/background-tray')return{configure(){}};if(id==='./modules/skin-switch')return{installEngines(){order.push('guards-installed');}};return{register(){}};
  }});await tick();assert(window);assert(order.indexOf('load-file')<order.indexOf('./modules/dds'));assert(order.indexOf('guards-installed')<order.indexOf('renderer-ipc'));assert.equal(contents.listenerCount('dom-ready'),1);
 });
 
@@ -20,6 +20,8 @@ function regionFixture(){
  const listeners=new Map(),pending=[],calls=[],nodes=new Map(),settings={gamepath:'D:/fixture/a',nsargs:'-multiple',northstarRegion:'cn'};
  const node=id=>{if(!nodes.has(id))nodes.set(id,{textContent:'',disabled:false,hidden:false,dataset:{},classList:{toggle(){}},setAttribute(){}});return nodes.get(id);};
  const scope={document:{getElementById:node,querySelectorAll(){return[];}},settings,gameDirectoryReady:true,is_running:false,launchPending:false,I18n:{current:'zh-CN',text:v=>v},setpath(){},Toast:class{},dismissToast(){},window:{I18n:{current:'zh-CN',text:v=>v},addEventListener(){}},ipcRenderer:{on(channel,callback){listeners.set(channel,callback);},invoke(channel,input){calls.push({channel,input,path:settings.gamepath});return new Promise(resolve=>pending.push(resolve));}}};
+ scope.window.VyraLaunchAvailability=require('../src/app/js/launch-availability');scope.window.VyraGameProcesses={snapshot:{ok:true,processes:[]}};
+ scope.globalGameDirectoryReady=false;scope.globalGameDirectorySelected=false;scope.chinaGameDirectorySelected=true;
  vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../src/app/js/region-client.js'),'utf8'),scope);return{scope,settings,calls,pending,api:scope.window.VyraClient,emit:(channel,input)=>listeners.get(channel)?.({},input),node,resolve(version='1.0.1',properties={}){const resolve=pending.shift();assert(resolve);resolve({ok:true,region:'cn',installed:true,active:true,state:'ready',version,...properties});}};
 }
 test('startup path and bundled version events share one regional client check',async()=>{

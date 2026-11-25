@@ -54,15 +54,23 @@ class LaunchConfirmation {
   begin(baseline, options = {}) {
     if (this.current) throw Error("已有游戏启动请求正在等待确认");
     if (!baseline?.ok) throw Error("无法读取游戏进程，请稍后重试启动");
-    if (hasGame(baseline, options.root)) throw Error("游戏或北极星启动进程已经运行，请等待启动完成或先退出游戏");
+    const customImages = options.images ? new Set(options.images.map(value => value.toLowerCase())) : null;
+    let alreadyRunning = false;
+    if (customImages) {
+      const scoped = options.root ? require("./game-roots").processesForRoot(baseline, options.root) : baseline.processes;
+      if (scoped === null) throw Error("无法确认游戏进程所属目录，请稍后重试");
+      alreadyRunning = scoped.some(process => customImages.has(image(process)));
+    } else alreadyRunning = hasGame(baseline, options.root);
+    if (alreadyRunning) throw Error(options.messages?.alreadyRunning || "游戏或北极星启动进程已经运行，请等待启动完成或先退出游戏");
     const requireReady = options.gameVersion === "northstar" || options.requireReady === true;
-    const targetImages = requireReady ? LAUNCH_IMAGES : GAME_IMAGES;
+    const targetImages = customImages || (requireReady ? LAUNCH_IMAGES : GAME_IMAGES);
     const session = {spawned: false, ready: false, entered: false, root: options.root, requireReady, officialMods:options.officialMods===true, childPid: null, baselinePids: new Set(baseline.processes.map(process => String(process.pid))), seenPid: null, seenAt: 0, childExit: null, everSeen: false, everCandidate: false, everHandoffCandidate: false, bootstrapHandoff: false, missingAt: null, observationRevision: 0, lastSnapshotOk: true, lastSnapshot: baseline, retryHandoff: options.retryHandoff, retryPending: false, retryAttempted: false, targetImages};
     session.allowBootstrapHandoff = options.allowBootstrapHandoff === true || !requireReady;
     session.platformDispatch = options.platformDispatch === true;
+    session.messages = options.messages;
     session.promise = new Promise(resolve => {session.resolve = resolve;});
     this.current = session;
-    session.timer = this.schedule(() => this.fail(session, session.requireReady && session.everSeen && !session.ready ? Object.assign(new Error(session.officialMods ? "游戏进程已运行，但未能确认 VanillaPlus 已加载。请退出游戏，检查官服 Mod 组件与启用的 Mod 后重试。" : "游戏进程已运行，但未能确认北极星私人服务器菜单已加载。请退出游戏并检查启动诊断后重试。"), {code:session.officialMods?"OFFICIAL_MOD_NOT_READY":"NORTHSTAR_NOT_READY"}) : Object.assign(new Error("等待游戏启动超时。请检查 EA App / Steam 是否已登录、是否有弹窗，确认游戏未启动后再重试；详情见启动诊断。"), {code:"LAUNCH_TIMEOUT"})), this.timeoutMs);
+    session.timer = this.schedule(() => this.fail(session, session.messages?.timeout ? Object.assign(Error(session.messages.timeout), {code:"LAUNCH_TIMEOUT"}) : session.requireReady && session.everSeen && !session.ready ? Object.assign(new Error(session.officialMods ? "游戏进程已运行，但未能确认 VanillaPlus 已加载。请退出游戏，检查官服 Mod 组件与启用的 Mod 后重试。" : "游戏进程已运行，但未能确认北极星私人服务器菜单已加载。请退出游戏并检查启动诊断后重试。"), {code:session.officialMods?"OFFICIAL_MOD_NOT_READY":"NORTHSTAR_NOT_READY"}) : Object.assign(new Error("等待游戏启动超时。请检查 EA App / Steam 是否已登录、是否有弹窗，确认游戏未启动后再重试；详情见启动诊断。"), {code:"LAUNCH_TIMEOUT"})), this.timeoutMs);
     session.timer?.unref?.();
     this.speedUp?.(this.now() + this.timeoutMs);
     return session;
@@ -142,6 +150,7 @@ class LaunchConfirmation {
   }
   exitError(session) {
     const value = session.childExit;
+    if (session.messages?.exit) return Object.assign(Error(session.messages.exit + (value?.signal ? " (" + value.signal + ")" : " (" + (value?.code ?? "unknown") + ")")), {code:"LAUNCH_EARLY_EXIT"});
     if (session.requireReady && !session.ready) {
       const detail = value?.signal ? "（" + value.signal + "）" : value?.code ? "（退出码 " + value.code + "）" : "";
       return Object.assign(Error("游戏在主菜单加载完成前退出" + detail + "。若不是手动关闭，请先排查最近启用的 Mod 或皮肤，再检查 EA App / Steam 登录提示与启动诊断。"), {code:session.everCandidate || session.entered ? "LAUNCH_EARLY_EXIT" : "LAUNCHER_EARLY_EXIT"});

@@ -6,8 +6,8 @@ function fixture() {
   const state = {
     conf:{gamepath:"D:/fixture/Titanfall2",nsargs:"",vanillaModsEnabled:true,modProfileServer:"vanilla",independentServerMods:false,northstarRegion:"cn"},
     component:{installed:false,verified:false,state:"missing",version:"2.5.1"},
-    runtime:{installed:false,active:false,installState:"not-installed",version:"1.31.13",selectedVersion:null},
-    valid:true,snapshot:{ok:true,processes:[]},calls:[],progress:[],writes:[],handlers:new Map(),emits:[],beforeGate:null,beforeEngineInstall:null,beforeRuntimeEnsure:null,
+    runtime:{ok:true,installed:false,active:false,installState:"not-installed",version:"1.31.13",selectedVersion:null},
+    valid:true,snapshot:{ok:true,processes:[]},calls:[],profiles:[],progress:[],writes:[],handlers:new Map(),emits:[],beforeGate:null,beforeEngineInstall:null,beforeRuntimeEnsure:null,
     engineProgress:[0,25,80,100],runtimeProgress:[0,20,80,100],snapshotCount:0,beforeSnapshot:null
   };
   const engine = {
@@ -35,11 +35,13 @@ function fixture() {
   };
   const compareVersions = (a,b) => {const left=String(a).split(".").map(Number),right=String(b).split(".").map(Number);for(let i=0;i<3;i++){const value=(left[i]||0)-(right[i]||0);if(value)return value;}return 0;};
   const stubs = {
+    fs,
     path,
     electron:{ipcMain:{handle:(name,fn) => state.handlers.set(name,fn),emit:name => state.emits.push(name)}},
     "./settings":() => ({...state.conf}),
     "./northstar-clients":clients,
-    "./northstar-region":{resolveProfile:root => path.join(root,"R2Northstar")},
+    "./northstar-region":{OFFICIAL_PROFILE:"R2Titanfall",resolveProfile:(root,args,forcedProfile) => {state.profiles.push({root,args,forcedProfile});return path.join(root,forcedProfile||"R2Northstar");}},
+    "./game-roots":{...require("../src/modules/game-roots"),resolveGameRoot:conf => state.valid ? conf.gamepath : null},
     "./launch-session":{splitArguments:value => value.split(/\s+/).filter(Boolean),hasGame:value => value.processes.some(item => /titanfall2|northstarlauncher/i.test(item.image))},
     "./dds-operation-gate":{run:async (name,fn) => {state.calls.push(["gate",name]); await state.beforeGate?.(); return fn();}},
     "./vanilla-plus":{VERSION:"2.5.1",createManager:options => {state.calls.push(["create-engine",clone(options)]); return engine;}},
@@ -54,7 +56,7 @@ function fixture() {
 }
 function installed(f,{version="1.31.13"} = {}) {
   f.state.component = {installed:true,verified:true,state:"installed",version:"2.5.1"};
-  f.state.runtime = {installed:true,active:true,installState:"installed",version,selectedVersion:version,installedVersion:version};
+  f.state.runtime = {ok:true,installed:true,active:true,installState:"installed",version,selectedVersion:version,installedVersion:version};
 }
 test("status is read-only and exposes missing explicit installation without downloading or launching", async () => {
   const f = fixture(), result = await f.api.status();
@@ -62,23 +64,23 @@ test("status is read-only and exposes missing explicit installation without down
   assert.deepEqual(f.state.writes,[]); assert.equal(f.state.calls.some(call => /install|ensure|gate/.test(call[0])),false);
   assert.equal(f.state.handlers.has("vanilla-client-status"),true); assert.equal(f.state.handlers.has("vanilla-client-install"),true); assert.deepEqual(f.state.emits,[]);
 });
-test("verified VanillaPlus still needs repair when the installed global runtime predates 1.29", async () => {
-  const f = fixture(); installed(f,{version:"1.28.9"});
+test("verified VanillaPlus still needs repair when the installed global runtime predates 1.21", async () => {
+  const f = fixture(); installed(f,{version:"1.20.9"});
   const value = await f.api.status(); assert.equal(value.installed,false); assert.equal(value.outdated,true); assert.equal(value.runtimeInstalled,false); assert.equal(value.state,"damaged"); assert.deepEqual(f.state.writes,[]);
   f.state.runtime = {...f.state.runtime,version:"1.31.13",selectedVersion:"1.31.13"};
   assert.equal((await f.api.status()).installed,true);
 });
 test("missing or damaged VanillaPlus cannot launch and does not implicitly download a runtime", async () => {
   for (const component of [{installed:false,verified:false,state:"missing",version:"2.5.1"},{installed:true,verified:false,state:"damaged",version:"2.5.1"}]) {
-    const f = fixture(); f.state.component = component;
+    const f = fixture(); installed(f); f.state.component = component;
     await assert.rejects(f.api.ensure(),{code:"VANILLA_CLIENT_NOT_INSTALLED"});
     assert.deepEqual(f.state.writes,[]); assert.equal(f.state.calls.some(call => call[0] === "runtime-ensure"),false);
   }
 });
 test("a missing global runtime cannot launch despite a verified compatibility package", async () => {
   const f = fixture(); f.state.component = {installed:true,verified:true,state:"installed",version:"2.5.1"};
-  await assert.rejects(f.api.ensure(),{code:"NORTHSTAR_CLIENT_NOT_INSTALLED"}); assert.deepEqual(f.state.writes,[]);
-  const request = f.state.calls.find(call => call[0] === "runtime-ensure")[1]; assert.equal(request.allowInstall,false); assert.equal(request.refresh,false); assert.equal(request.conf.northstarRegion,"global");
+  await assert.rejects(f.api.ensure(),{code:"VANILLA_RUNTIME_MISSING"}); assert.deepEqual(f.state.writes,[]);
+  assert.equal(f.state.calls.some(call => call[0] === "runtime-ensure"),false);
 });
 test("explicit install refreshes runtime metadata and installs the global compatibility runtime", async () => {
   const f = fixture(), result = await f.api.install();
@@ -88,9 +90,17 @@ test("explicit install refreshes runtime metadata and installs the global compat
   assert.equal(request.allowInstall,true); assert.equal(request.refresh,true); assert.equal(request.conf.northstarRegion,"global");
   assert.equal(f.state.conf.northstarRegion,"cn"); assert.deepEqual(f.state.emits,["gui-getmods","get-version"]);
 });
+test("VanillaPlus uses R2Titanfall for its Global Northstar framework",async()=>{
+  const f=fixture();installed(f);const result=await f.api.ensure();
+  assert.equal(result.profile,path.join(f.state.conf.gamepath,"R2Titanfall"));
+  assert.equal(f.state.profiles.at(-1).forcedProfile,"R2Titanfall");
+  const runtime=f.state.calls.filter(call=>["runtime-status","runtime-ensure"].includes(call[0]));
+  assert.equal(runtime[0][1],"global");assert.equal(runtime[0][2].nsargs,"-profile=R2Titanfall");
+  assert.equal(runtime[1][1].conf.northstarRegion,"global");assert.equal(runtime[1][1].conf.nsargs,"-profile=R2Titanfall");
+});
 test("runtime repair is explicit and also selected automatically for a damaged global client", async () => {
   for (const explicit of [false,true]) {
-    const f = fixture(); installed(f); if (!explicit) f.state.runtime.installState = "damaged";
+    const f = fixture(); installed(f); if (!explicit) Object.assign(f.state.runtime,{installState:"damaged",active:false});
     const result = await f.api.install({repair:explicit}); assert.equal(result.ok,true);
     assert.equal(f.state.calls.find(call => call[0] === "runtime-ensure")[1].repair,true); assert.deepEqual(f.state.writes,["runtime"]);
   }
@@ -126,10 +136,10 @@ test("progress spans both installation stages and monotonically finishes at 100"
   assert.deepEqual(f.state.progress.at(-1),{phase:"done",percent:100});
 });
 test("outdated runtime and final package verification cannot report success", async () => {
-  const older = fixture(); installed(older,{version:"1.28.9"});
+  const older = fixture(); installed(older,{version:"1.20.9"});
   await assert.rejects(older.api.ensure(),{code:"VANILLA_RUNTIME_OUTDATED"}); assert.equal(older.state.progress.some(item => item.phase==="done"),false);
   const changed = fixture(); installed(changed); changed.state.beforeRuntimeEnsure = () => {changed.state.component.verified=false;changed.state.component.state="damaged";};
-  await assert.rejects(changed.api.ensure(),{code:"VANILLA_CLIENT_NOT_INSTALLED"}); assert.equal(changed.state.progress.some(item => item.phase==="done"),false);
+  await assert.rejects(changed.api.ensure({allowInstall:true}),{code:"VANILLA_CLIENT_NOT_INSTALLED"}); assert.equal(changed.state.progress.some(item => item.phase==="done"),false);
 });
 test("invalid game selection is reported without creating or installing anything", async () => {
   const f = fixture(); f.state.valid=false;
@@ -137,6 +147,6 @@ test("invalid game selection is reported without creating or installing anything
   const install = await f.api.install(); assert.equal(install.ok,false); assert.equal(install.code,"GAME_DIRECTORY_INVALID"); assert.deepEqual(f.state.writes,[]); assert.equal(f.state.calls.some(call => call[0]==="create-engine"),false);
 });
 test("a newly installed component is reflected as a change even if the runtime was already current", async () => {
-  const f = fixture(); f.state.runtime = {installed:true,active:true,installState:"installed",version:"1.31.13",selectedVersion:"1.31.13"};
+  const f = fixture(); installed(f); f.state.component = {installed:false,verified:false,state:"missing",version:"2.5.1"};
   const result = await f.api.install(); assert.equal(result.ok,true); assert.deepEqual(f.state.writes,["component"]); assert.equal(result.changed,true);
 });

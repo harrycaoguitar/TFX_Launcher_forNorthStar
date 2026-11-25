@@ -1,7 +1,6 @@
 "use strict";
 const launcherVersion=require("./launcher-version");
-// Public GitHub metadata only. Checking never downloads or installs an asset;
-// links are revalidated in main before the explicit open IPC is accepted.
+// Checks are read-only. Installation is a separate, explicit action.
 const https=require("https");
 const REPOSITORY="harrycaoguitar/TFX_Launcher_forNorthStar";
 const API_URL=`https://api.github.com/repos/${REPOSITORY}/releases/latest`;
@@ -39,7 +38,9 @@ function selectRelease(data){
  if(!isReleaseURL(data.html_url,data.tag_name)||!Array.isArray(data.assets))throw failure("UNTRUSTED_RELEASE","更新信息中的仓库或下载地址不匹配");
  const candidates=data.assets.filter(asset=>typeof asset?.name==="string"&&Number.isSafeInteger(asset.size)&&asset.size>0&&asset.state==="uploaded"&&isAssetURL(asset.browser_download_url,data.tag_name,asset.name));
  const asset=candidates.find(item=>/tfx.*(?:launcher|setup)|(?:launcher|setup).*tfx/i.test(item.name))||candidates.find(item=>/tfx/i.test(item.name));
- return {latestVersion:data.tag_name,releaseUrl:data.html_url,assetUrl:asset?.browser_download_url||null,tag:data.tag_name,assetName:asset?.name||null};
+ const setup=candidates.find(item=>item.name.toLowerCase()===`tfx-launcher-${data.tag_name.replace(/^v/,"")}-setup.exe`.toLowerCase()&&/^sha256:[0-9a-f]{64}$/i.test(item.digest||""));
+ return {latestVersion:data.tag_name,releaseUrl:data.html_url,assetUrl:asset?.browser_download_url||null,tag:data.tag_name,assetName:asset?.name||null,
+  setup:setup?{url:setup.browser_download_url,name:setup.name,size:setup.size,digest:setup.digest.slice(7).toLowerCase()}:null};
 }
 function requestMetadata({transport=https,timeoutMs=TIMEOUT_MS,maxBytes=MAX_RESPONSE_BYTES}={}){
  return new Promise((resolve,reject)=>{
@@ -68,8 +69,8 @@ function httpError(response){
  if(response.statusCode===403||response.statusCode===429){const rate=response.statusCode===429||String(response.headers["x-ratelimit-remaining"])==="0"||response.headers["retry-after"]||/rate limit|secondary rate/i.test(response.body);return failure(rate?"RATE_LIMIT":"FORBIDDEN",rate?"GitHub 请求次数达到限制，请稍后重试":"GitHub 拒绝了更新检查请求");}
  return failure(response.statusCode>=500?"SERVER_ERROR":"HTTP_ERROR","GitHub 更新检查失败，请稍后重试");
 }
-function createUpdater({currentVersion,transport=https,now=Date.now,timeoutMs=TIMEOUT_MS,maxBytes=MAX_RESPONSE_BYTES,retries=1,cacheMs=CACHE_MS,openExternal}={}){
- let pending=null,last=null,lastAt=0,lastSelection=null;
+function createUpdater({currentVersion,transport=https,now=Date.now,timeoutMs=TIMEOUT_MS,maxBytes=MAX_RESPONSE_BYTES,retries=1,cacheMs=CACHE_MS,openExternal,installSetup}={}){
+ let pending=null,last=null,lastAt=0,lastSelection=null,installing=false;
  const base=()=>({currentVersion,latestVersion:null,releaseUrl:null,assetUrl:null,checkedAt:new Date(now()).toISOString(),errorCode:null});
  async function run(){
   if(!parseVersion(currentVersion))return {...base(),ok:false,status:"error",errorCode:"CURRENT_VERSION",error:"当前启动器版本无法比较"};
@@ -85,7 +86,7 @@ function createUpdater({currentVersion,transport=https,now=Date.now,timeoutMs=TI
    const selection=selectRelease(data),comparison=compareVersions(currentVersion,selection.latestVersion);
    if(comparison===null)throw failure("VERSION","更新版本无法比较");
    lastSelection=selection;
-   return {...base(),ok:true,status:comparison<0?"available":"up-to-date",latestVersion:selection.latestVersion,releaseUrl:selection.releaseUrl,assetUrl:selection.assetUrl};
+   return {...base(),ok:true,status:comparison<0?"available":"up-to-date",latestVersion:selection.latestVersion,releaseUrl:selection.releaseUrl,assetUrl:selection.assetUrl,canInstall:comparison<0&&Boolean(selection.setup)};
   }catch(error){lastSelection=null;return {...base(),ok:false,status:"error",errorCode:error.code||"NETWORK",error:error.message};}
  }
  function check(input={}){
@@ -102,12 +103,26 @@ function createUpdater({currentVersion,transport=https,now=Date.now,timeoutMs=TI
   if(typeof openExternal!=="function")return {ok:false,errorCode:"OPEN_UNAVAILABLE",error:"无法打开官方更新页面"};
   try{await openExternal(target);return {ok:true,opened:true};}catch{return {ok:false,errorCode:"OPEN_FAILED",error:"无法打开官方更新页面"};}
  }
- return {check,open};
+ async function install(input,progress){
+  if(installing)return {ok:false,error:"启动器正在更新。"};
+  if(pending||last?.status!=="available"||!lastSelection?.setup||input?.version!==lastSelection.tag||now()-lastAt>=cacheMs)
+   return {ok:false,error:"请先检查是否有可安装的新版。"};
+  if(!installSetup)return {ok:false,error:"当前运行方式不支持一键更新。"};
+  installing=true;
+  try{await installSetup(lastSelection.setup,progress);return {ok:true};}
+  catch(error){return {ok:false,error:error.message};}
+  finally{installing=false;}
+ }
+ return {check,open,install};
 }
-function register({ipcMain,shell,currentVersion=launcherVersion()}={}){
- const updater=createUpdater({currentVersion,openExternal:url=>shell.openExternal(url)});
+function register({app,ipcMain,shell,currentVersion=launcherVersion()}={}){
+ const updater=createUpdater({currentVersion,openExternal:url=>shell.openExternal(url),
+  installSetup:app?(setup,progress)=>require("./launcher-update-install").install({app,setup,progress}):null});
  ipcMain.handle("launcher-update-check",(_event,input={})=>updater.check(input));
  ipcMain.handle("launcher-update-open",(_event,input={})=>updater.open(input));
+ ipcMain.handle("launcher-update-install",(event,input)=>updater.install(input,value=>{
+  if(!event.sender.isDestroyed())event.sender.send("launcher-update-progress",value);
+ }));
  return updater;
 }
 module.exports={REPOSITORY,API_URL,parseVersion,compareVersions,isReleaseURL,isAssetURL,selectRelease,requestMetadata,createUpdater,register};

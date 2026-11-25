@@ -1,6 +1,15 @@
 {
   "locale": "fr-FR",
   "strings": {
+    "No Icepick Mod imported. Drop an archive or complete folder containing a valid mod.json for automatic detection and installation.": "Aucun mod Icepick importé. Déposez une archive ou un dossier complet contenant un fichier mod.json valide.",
+    "Installed in the Icepick folder. Enable, disable and remove mods in the Icepick manager under My Mods.": "Installé dans le dossier Icepick. Activez, désactivez ou supprimez les mods Icepick depuis « Mes mods ».",
+    "Mod installer": "Installation de mods",
+    "Import Mods and skins": "Importer des Mods et des apparences",
+    "Supports Icepick, Northstar Mods, DDS and VTF. Drop a package to detect and install it automatically.": "Prend en charge Icepick, les mods Northstar, DDS et VTF. Déposez un paquet pour le détecter et l’installer automatiquement.",
+    "Icepick · Northstar Mod · DDS · VTF · ZIP · 7Z · RAR · folders": "Icepick · Mod Northstar · DDS · VTF · ZIP · 7Z · RAR · dossiers",
+    "Drop files for automatic detection and installation": "Déposez les fichiers pour les détecter et les installer automatiquement",
+    "Drop Icepick or Northstar Mods, DDS, VTF, or a complete folder.": "Déposez des mods Icepick ou Northstar, des fichiers DDS ou VTF, ou un dossier complet.",
+    "Ready for files": "En attente de fichiers",
     "EA emulator": "Émulateur EA",
     "Save your changes before leaving?": "Enregistrer les modifications avant de quitter ?",
     "You have unsaved changes. Save them before leaving, discard them, or keep editing.": "Des modifications ne sont pas enregistrées. Enregistrez-les avant de quitter, abandonnez-les ou poursuivez les modifications.",

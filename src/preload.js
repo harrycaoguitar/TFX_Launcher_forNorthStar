@@ -17,27 +17,33 @@ const sendChannels = new Set([
 ]);
 
 const receiveChannels = new Set([
+	"r1delta-progress",
+	"r1delta-addon-progress",
 	"window-state",
 	"dds-progress", "vtf-progress", "skin-resource-progress", "skin-import-progress", "weapon-library-progress",
-	"launch-guard-result", "launch-status", "launch-diagnostic", "launch-compatibility", "northstar-client-progress", "vanilla-client-progress", "global-game-root-progress", "china-game-root-progress",
+	"launch-guard-result", "launch-status", "northstar-connection", "launch-diagnostic", "launch-compatibility", "northstar-client-progress", "vanilla-client-progress", "global-game-root-progress", "china-game-root-progress",
 	"alert", "changed-settings", "confirm", "download-cancelled", "globalpath-selected", "globalpath-status",
 	"duped-mod", "failed-mod", "gamepath-lost", "gamepath-status", "gamepath-error", "installed-mod",
 	"game-process-snapshot", "is-running", "legacy-duped-mod", "log", "mods", "newpath",
-	"no-internet", "no-path-selected", "ns-notes", "ns-update-event",
+	"no-internet", "no-path-selected", "ns-notes", "ns-update-event", "launcher-update-progress",
 	"pkg-progress", "removed-mod", "set-buttons", "unknown-error",
 	"version", "vp-notes", "wrong-path"
 ]);
 
 const invokeChannels = new Set([
+	"r1delta-status", "r1delta-select", "r1delta-install", "r1delta-launch", "r1delta-launch-steam",
+	"r1delta-addons-list", "r1delta-addons-inspect", "r1delta-addons-clear", "r1delta-addons-install", "r1delta-addons-toggle", "r1delta-addons-remove", "r1delta-addons-open",
+	"r1delta-servers", "r1delta-server-join", "r1delta-server-copy",
 	"skin-import-select", "skin-import-inspect", "skin-import-install", "skin-import-clear", "weapon-library-list", "weapon-library-restore", "weapon-library-prune",
-	"launcher-update-check", "launcher-update-open",
-	"ea-status", "ea-login", "ea-logout", "ea-refresh", "ea-diagnostics", "ea-diagnostics-repair", "ea-diagnostics-open-log", "ea-registry-write",
+	"launcher-update-check", "launcher-update-open", "launcher-update-install", "launcher-log-open",
+	"northstar-update-check", "northstar-update-install", "download-cache-clear",
+	"ea-status", "ea-login", "ea-logout", "ea-switch-account", "ea-refresh", "ea-diagnostics", "ea-diagnostics-repair", "ea-diagnostics-open-log", "ea-diagnostics-copy", "ea-registry-write",
 	"icepick-status", "icepick-select", "icepick-launch", "icepick-toggle", "icepick-remove", "icepick-import", "icepick-open",
 	"launch-diagnostic-get", "launch-diagnostic-export",
 	"settings-save", "settings-restore-defaults", "northstar-client-status", "northstar-client-install", "global-game-root-install", "china-game-root-install", "vanilla-client-status", "vanilla-client-install",
 	"server-list-get",
 	"set-mod-state",
-	"window-move-begin", "window-move-update", "window-move-end", "window-toggle-maximize",
+	"window-move-begin", "window-move-update", "window-move-end", "window-toggle-maximize", "window-toggle-fullscreen", "window-background",
 	"vtf-status", "vtf-preview", "vtf-select", "vtf-inspect", "vtf-clear", "vtf-install", "vtf-restore", "vtf-delete-backup", "vtf-open-backups",
 	"dds-status", "dds-preview", "dds-select", "dds-inspect", "dds-clear", "dds-install", "dds-restore", "dds-delete-backup", "dds-open-backups",
 	"dds-protection-status", "dds-protection-set", "dds-protection-capture",
@@ -91,6 +97,7 @@ contextBridge.exposeInMainWorld("ipcRenderer", {
 });
 
 contextBridge.exposeInMainWorld("fold", {
+	reportError: message => { if(typeof message === "string") ipcRenderer.send("tfx-renderer-error", message.slice(0,16000)); },
 	getDroppedFilePath: file => webUtils.getPathForFile(file),
 	loadSettings,
 	openExternal(url) {

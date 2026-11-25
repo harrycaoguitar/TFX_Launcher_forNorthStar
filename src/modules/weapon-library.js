@@ -179,12 +179,14 @@ async function buildLibrary({gamePath,dds,vtf,mods=[],switchDir,readDds=ddsJourn
 function register({dds,vtf,mods,settings,switchDir,ipcMain=require("electron").ipcMain,getCoordinator=()=>require("./skin-switch").getActive(),operationGate=require("./dds-operation-gate")}={}){
   let running=null;
   const selectedGamePath=()=>gameRoots.gameRootForProfile(settings());
+  const selectionKey=conf=>JSON.stringify([gameRoots.profileServer(conf),conf.gamepath,conf.globalGamepath,conf.nsargs]);
   const isCurrentRoot=gamePath=>{try{return gameRoots.sameRoot(selectedGamePath(),gamePath);}catch{return false;}};
   async function list(){
-    const saved=settings(),gamePath=gameRoots.gameRootForProfile(saved);let library=[],modWarning=false;
+    const saved=settings(),selected=selectionKey(saved);let gamePath,library=[],modWarning=false;
+    try{gamePath=gameRoots.gameRootForProfile(saved);}catch{return buildLibrary();}
     try{library=mods.list({readOnly:true}).all;}catch{modWarning=true;}
     const result=await buildLibrary({gamePath,dds,vtf,mods:library,switchDir:switchDir||path.join(path.dirname(dds.baseDir),"skin-switch")});
-    if(!isCurrentRoot(gamePath))return {ok:false,error:"STALE_WEAPON_LIBRARY"};
+    if(selectionKey(settings())!==selected||!isCurrentRoot(gamePath))return {ok:false,error:"STALE_WEAPON_LIBRARY"};
     if(modWarning)warning(result.warnings,"mod-scan-incomplete");return result;
   }
   ipcMain.handle("weapon-library-list",async()=>{
@@ -193,8 +195,8 @@ function register({dds,vtf,mods,settings,switchDir,ipcMain=require("electron").i
     try{return await running;}finally{running=null;}
   });
   ipcMain.handle("weapon-library-prune",async(_event,input={})=>{
-    const gamePath=selectedGamePath();
     try{
+      const gamePath=selectedGamePath();
       if(!input||typeof input!=="object"||Array.isArray(input)||Object.keys(input).length)throw Error("WEAPON_RECOVERY_INVALID_REQUEST");
       if(operationGate.busy||dds.busy||vtf.busy||dds.sharedImportBusy||vtf.sharedImportBusy||dds.isImportBusy?.()||vtf.isImportBusy?.())throw Error("WEAPON_RECOVERY_BUSY");
       return await operationGate.run("weapon-library-prune",async()=>{
@@ -205,8 +207,8 @@ function register({dds,vtf,mods,settings,switchDir,ipcMain=require("electron").i
   });
   ipcMain.handle("weapon-library-restore",async(event,input={})=>{
     const progress=data=>{if(event?.sender&&!event.sender.isDestroyed())event.sender.send("weapon-library-progress",data);};
-    const gamePath=selectedGamePath();
     try{
+      const gamePath=selectedGamePath();
       if(!input||typeof input!=="object"||Array.isArray(input))throw Error("WEAPON_RECOVERY_INVALID_REQUEST");
       if(operationGate.busy||dds.busy||vtf.busy||dds.sharedImportBusy||vtf.sharedImportBusy||dds.isImportBusy?.()||vtf.isImportBusy?.())throw Error("WEAPON_RECOVERY_BUSY");
       return await operationGate.run("weapon-library-restore",async()=>{

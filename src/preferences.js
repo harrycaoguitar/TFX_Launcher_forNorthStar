@@ -1,5 +1,6 @@
 "use strict";
 const {normalize: normalizeLocale} = require("./locale");
+const {normalize: normalizePalette} = require("./app/prototype/palettes");
 const themes = new Set(["aurora", "abyss", "nebula", "sakura", "ember", "grove", "sandstone", "graphite", "glacier", "mist"]);
 const sorts = new Set(["added", "name", "enabled"]);
 const excludes = Object.freeze(["ns_startup_args.txt", "ns_startup_args_dedi.txt"]);
@@ -15,6 +16,7 @@ function normalize(value, defaultLocale = "en-US") {
     chinaSourceGamepath: typeof data.chinaSourceGamepath === "string" ? data.chinaSourceGamepath : "",
     chinaInstallTarget: typeof data.chinaInstallTarget === "string" ? data.chinaInstallTarget : "",
     theme: themes.has(data.theme) ? data.theme : "aurora",
+    prototypeTheme: normalizePalette(data.prototypeTheme),
     uiLanguage: normalizeLocale(data.uiLanguage || data.lang || data.forcedlang, defaultLocale),
     modSort: sorts.has(data.modSort) ? data.modSort : "added",
     northstarRegion: data.northstarRegion === "global" ? "global" : "cn",

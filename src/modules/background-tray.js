@@ -31,11 +31,11 @@ function ensureTray() {
 	if (tray) return tray;
 	try {
 		tray = new Tray(iconPath());
-		tray.setToolTip("TFX Launcher · EA 模拟器服务运行中");
+		tray.setToolTip("TFX Launcher");
 		tray.setContextMenu(Menu.buildFromTemplate([
 			{label:"显示 TFX", click:showWindow},
 			{type:"separator"},
-			{label:"退出 TFX（会停止 EA 服务）", click:forceQuit}
+			{label:"退出 TFX", click:forceQuit}
 		]));
 		tray.on("double-click", showWindow);
 	} catch (_) {
@@ -49,9 +49,9 @@ function enter(reason = "background") {
 	if (!win || win.isDestroyed()) return false;
 	const created = ensureTray();
 	if (!created) return false;
-	quitRequested = true;
+	quitRequested = reason !== "manual";
 	try { win.hide(); } catch (_) {}
-	if (created?.displayBalloon) {
+	if (reason !== "manual" && created?.displayBalloon) {
 		try {
 			created.displayBalloon({
 				title:"TFX 正在后台运行",

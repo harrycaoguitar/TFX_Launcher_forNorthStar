@@ -4,8 +4,8 @@ const profiles = require("../src/modules/server-mod-profiles"), state = require(
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "tfx-server-mods-"));
 function fixture() {
   const dir = fs.mkdtempSync(path.join(root, "case-")), gamepath = path.join(dir, "game"), profile = path.join(gamepath, "R2Northstar"), file = path.join(profile, "enabledmods.json");
-  fs.mkdirSync(profile, {recursive: true});
-  const conf = {gamepath, nsargs: "", northstarRegion: "cn", independentServerMods: false};
+  fs.mkdirSync(profile, {recursive: true}); fs.mkdirSync(path.join(gamepath, "r2")); fs.writeFileSync(path.join(gamepath, "Titanfall2.exe"), "fixture");
+  const conf = {gamepath, globalGamepath:gamepath, nsargs: "", northstarRegion: "cn", independentServerMods: false};
   function put(name, version = "1", folder = name) {const target = path.join(profile, "mods", folder); fs.mkdirSync(target, {recursive: true}); fs.writeFileSync(path.join(target, "mod.json"), JSON.stringify({Name: name, Version: version}));}
   for (const name of state.CORE_NAMES) put(name); put("Example.On"); put("Example.Off");
   fs.writeFileSync(file, JSON.stringify({"Example.On": true, "Example.Off": false}));
@@ -15,6 +15,11 @@ function fixture() {
   function set(name, enabled, version = "1") {const before = snapshot(), doc = document(); state.set(doc, name, version, enabled); state.write(file, before, state.serialize(doc)); if(conf.independentServerMods)profiles.transition(conf,conf);}
   return {dir, gamepath, profile, file, conf, put, snapshot, document, on, select, set, meta: () => profiles.read(profile).value};
 }
+test("official selection resolves VanillaPlus in R2Titanfall regardless of community launch arguments",()=>{
+  const f=fixture();fs.writeFileSync(path.join(f.gamepath,"Titanfall2.exe"),"fixture");fs.mkdirSync(path.join(f.gamepath,"R2Titanfall"),{recursive:true});
+  const selected=profiles.context({...f.conf,nsargs:"-profile=PersonalCommunity",modProfileServer:"official"});
+  assert.equal(selected.profile,path.join(f.gamepath,"R2Titanfall"));assert.equal(selected.region,"official");
+});
 test("independence is opt-in and shared mode never creates metadata or edits live state", () => {
   const f = fixture(), before = f.snapshot(); f.select({northstarRegion: "global"});
   assert.deepEqual(f.snapshot(), before); assert.equal(profiles.read(f.profile).value, null);
@@ -149,7 +154,7 @@ test("acknowledged settings IPC blocks running/busy switches and atomically roll
   assert.equal((await f.handles.get("settings-restore-defaults")({})).settings.independentServerMods, false); assert.equal(f.settings().northstarRegion, "cn"); assert.equal(f.events.some(event => event[0] === "gui-getmods"), true);
 });
 test("three server snapshots independently retain personal choices while the correct runtime core stays fixed", async () => {
-  const f = fixture(); f.put("VanillaPlus", "2.5.1", "NP.VanillaPlus");
+  const f = fixture(); f.conf.profileDirectory=f.profile; f.put("VanillaPlus", "2.5.1", "NP.VanillaPlus");
   f.select({independentServerMods: true, modProfileServer: "cn"});
   assert.equal(f.meta().schemaVersion, 2); assert.equal(f.meta().official["Example.On"], true);
   assert.equal(state.enabled(f.document(), "VanillaPlus", "2.5.1"), false);
@@ -168,10 +173,11 @@ test("three server snapshots independently retain personal choices while the cor
   f.select({modProfileServer: "official"}); assert.equal(f.on("Example.On"), false); assert.equal(f.on("Example.Off"), true);
 });
 test("legacy two server metadata upgrades without changing either existing personal snapshot", () => {
+  // This exercises migration of a single existing profile's metadata.
   const f = fixture(); f.select({independentServerMods: true}); f.set("Example.On", false); f.select({northstarRegion: "global"}); f.set("Example.Off", true);
   const previous = f.meta(); delete previous.official; previous.schemaVersion = 1;
   fs.writeFileSync(profiles.filename(f.profile), JSON.stringify(previous));
-  f.select({modProfileServer: "official"});
+  f.select({modProfileServer: "official",profileDirectory:f.profile});
   assert.equal(f.meta().schemaVersion, 2); assert.deepEqual(f.meta().cn, previous.cn); assert.deepEqual(f.meta().global, previous.global);
   assert.equal(f.meta().official["Example.Off"], true); assert.equal(f.meta().activeRegion, "official");
 });
@@ -190,7 +196,7 @@ test("shared official/community launch keeps personal switches shared and never 
   files.forEach((file, index) => assert.deepEqual(fs.readFileSync(file), original[index]));
 });
 test("a newly imported Mod remains confined to its active official server and all three snapshots roll back on failed commit", () => {
-  const f = fixture(); f.select({independentServerMods: true, modProfileServer: "official"}); f.put("Official.New");
+  const f = fixture(); f.conf.profileDirectory=f.profile; f.select({independentServerMods: true, modProfileServer: "official"}); f.put("Official.New");
   f.select({modProfileServer: "cn"}); assert.equal(f.on("Official.New"), false);
   f.select({modProfileServer: "global"}); assert.equal(f.on("Official.New"), false);
   const live = f.snapshot(), metadata = fs.readFileSync(profiles.filename(f.profile));
@@ -208,12 +214,30 @@ test("official preparation rejects missing/duplicate VanillaPlus or interrupted 
 });
 test("official selection preference commits through the same guarded settings transaction and defaults stay backward compatible", async () => {
   const f = settingsFixture(), save = patch => f.handles.get("settings-save")({}, patch);
+  const official = path.join(f.gamepath, "R2Titanfall");
+  fs.mkdirSync(official);
   assert.equal(f.settings().modProfileServer, "cn"); assert.equal(f.settings().vanillaModsEnabled, false);
   assert.equal((await save({independentServerMods: true})).ok, true);
-  assert.equal((await save({modProfileServer: "official", vanillaModsEnabled: true})).ok, true); assert.equal(f.meta().activeRegion, "official");
+  assert.equal((await save({modProfileServer: "official", vanillaModsEnabled: true})).ok, true);
+  assert.equal(profiles.read(official).value.activeRegion, "official");
+  assert.equal(f.meta().activeRegion, "cn");
   f.processes({ok: true, processes: [{image: "titanfall2.exe", pid: 123}]});
   assert.equal((await save({modProfileServer: "global"})).code, "GAME_RUNNING"); assert.equal((await save({vanillaModsEnabled: false})).code, "GAME_RUNNING");
   f.processes({ok: true, processes: []}); assert.equal((await save({northstarRegion: "global"})).ok, true); assert.equal(f.settings().modProfileServer, "global");
   const preferences = require("../src/preferences"); assert.equal(preferences.normalize({northstarRegion: "global"}).modProfileServer, "global"); assert.equal(preferences.normalize({modProfileServer: "invalid", vanillaModsEnabled: "true"}).vanillaModsEnabled, false);
+});
+test("changing the Global game directory projects its own independent profile and observes the running-game guard", async () => {
+  const f = settingsFixture(), other = fixture(), save = patch => f.handles.get("settings-save")({}, patch);
+  assert.equal((await save({northstarRegion: "global", independentServerMods: true})).ok, true);
+  f.processes({ok:true, processes:[{image:"Titanfall2.exe", executablePath:path.join(f.gamepath,"Titanfall2.exe")}]});
+  assert.equal((await save({globalGamepath:other.gamepath})).code,"GAME_RUNNING");
+  assert.equal(f.settings().globalGamepath,f.gamepath);
+  const old = f.snapshot();
+  f.processes({ok:true, processes:[]});
+  assert.equal((await save({globalGamepath:other.gamepath})).ok,true);
+  assert.equal(f.settings().globalGamepath,other.gamepath);
+  assert.equal(other.meta().activeRegion,"global");
+  assert.equal(other.document().format,"versioned");
+  assert.deepEqual(f.snapshot(),old);
 });
 test.after(() => {assert.equal(path.dirname(root), path.resolve(os.tmpdir())); assert(path.basename(root).startsWith("tfx-server-mods-")); fs.rmSync(root, {recursive: true, force: true});});

@@ -1,6 +1,5 @@
 "use strict";
 const path = require("path");
-const fs = require("fs");
 const {app,ipcMain,dialog,BrowserWindow,shell} = require("electron");
 const {DdsEngine,errorText} = require("./dds-engine");
 const settings = require("./settings");
@@ -103,9 +102,11 @@ ipcMain.handle("dds-delete-backup",async(event,input={})=>response(event,async()
   return {result,...await status(root)};
 })));
 ipcMain.handle("dds-protection-status",async()=>{
-  const root=gamePath();let ready=false;
-  try {ready=typeof root==="string"&&path.isAbsolute(root)&&fs.statSync(path.join(root,"Titanfall2.exe")).isFile();} catch (_) {}
-  return {ok:true,protection:await protection.status(root),game:{ready,path:root||""},running:await engine.isGameRunning(),busy:Boolean(gate.busy||engine.busy||protection.busy)};
+  let root="";
+  try {root=gamePath();} catch (error) {
+    if (!["GAME_ROOT_MISSING","GLOBAL_GAME_ROOT_MISSING","GAME_DIRECTORY_INVALID","GLOBAL_GAME_ROOT_INVALID"].includes(error.code)) throw error;
+  }
+  return {ok:true,protection:await protection.status(root),game:{ready:Boolean(root),path:root},running:root?gameRoots.hasGame(await isRunning.snapshot(),root):false,busy:Boolean(gate.busy||engine.busy||protection.busy)};
 });
 ipcMain.handle("dds-protection-set",async(event,input={})=>response(event,async()=>gate.run("dds-settings",async()=>({protection:await protection.setEnabled(gamePath(),input.enabled)}))));
 ipcMain.handle("dds-protection-capture",async event=>response(event,async()=>gate.run("dds-settings",async()=>({protection:await protection.capture(gamePath())}))));

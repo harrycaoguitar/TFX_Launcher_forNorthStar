@@ -26,7 +26,7 @@ function context(conf) {
 	} else {
 		try {gameRoot = require("./game-roots").gameRootForServer(conf, selectedServer(conf));}catch (_) {return null;}
 		if (!fs.existsSync(gameRoot)) return null;
-		profile = region.resolveProfile(gameRoot, splitArguments(conf.nsargs || ""));
+		profile = region.resolveProfile(gameRoot, splitArguments(conf.nsargs || ""), selectedServer(conf) === "official" ? region.OFFICIAL_PROFILE : undefined);
 	}
   if (!fs.existsSync(profile)) return null;
   state.checked(path.join(profile, ".tfx-path-check"));

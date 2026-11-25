@@ -9,7 +9,7 @@ const ASSETS=new Set([".vtf",".vmt",".mdl",".vvd",".vtx",".phy",".ani"]);
 const NOTE=/\.(txt|md|png|jpe?g|webp)$/i;
 const id=()=>crypto.randomUUID(),validId=x=>typeof x==="string"&&/^[a-f0-9-]{36}$/.test(x),errorText=e=>e.message||String(e);
 const archiveName=index=>`client_mp_common.bsp.pak000_${String(index).padStart(3,"0")}.vpk`;
-const equalPath=(a,b)=>path.resolve(a).toLowerCase()===path.resolve(b).toLowerCase();
+const {sameRoot:equalPath}=require("./game-roots");
 const resourcePathError="皮肤资源路径包含链接或非普通文件，已停止资源读写。";
 async function acquireGameLock(gamePath){
   if(!gamePath)throw Error("请先选择泰坦陨落 2 游戏目录");const directory=await fsp.realpath(path.resolve(gamePath)),file=path.join(directory,".vyra-vtf.lock"),token=id(),temporary=path.join(directory,`.vyra-vtf-${token}.lock.tmp`);
@@ -120,7 +120,7 @@ class VtfEngine{
   constructor(options){this.baseDir=options.baseDir;this.packagesDir=options.packagesDir||path.join(this.baseDir,"packages");this.toolsDir=options.toolsDir;this.isGameRunning=options.isGameRunning|| (async()=>false);this.emit=options.progress||(()=>{});this.packages=new Map();this.busy=false;this.originals=new VtfOriginals({baseDir:this.baseDir,offlinePack:options.offlinePack,...(options.manifestProvider?{manifestProvider:options.manifestProvider}:{})});this.resources=new VtfResourceRecovery({baseDir:this.baseDir,offlinePack:options.offlinePack,isGameRunning:()=>this.isGameRunning(),progress:data=>this.emit(data),...(options.manifestProvider?{manifestProvider:options.manifestProvider}:{})});}
   progress(phase,percent,message){this.emit({phase,percent:Math.max(0,Math.min(100,Math.round(percent))),message});}
   async initialize(){await fsp.mkdir(this.packagesDir,{recursive:true});await fsp.mkdir(path.join(this.baseDir,"backups"),{recursive:true});}
-  tool(args){const executable=fs.existsSync(path.join(this.toolsDir,"7z.exe"))?"7z.exe":"7za.exe";return new Promise((resolve,reject)=>execFile(path.join(this.toolsDir,executable),args,{windowsHide:true,encoding:"utf8",maxBuffer:8*1024*1024,timeout:15*60*1000},(err,stdout,stderr)=>{if(err)return reject(Error(`VTF 压缩包读取失败：${stderr.trim()||err.message}`));resolve(stdout);}));}
+  tool(args){return new Promise((resolve,reject)=>execFile(path.join(this.toolsDir,"7z.exe"),args,{windowsHide:true,encoding:"utf8",maxBuffer:8*1024*1024,timeout:15*60*1000},(err,stdout,stderr)=>{if(err)return reject(Error(`VTF 压缩包读取失败：${stderr.trim()||err.message}`));resolve(stdout);}));}
   async extract(source,destination){
     const listing=await this.tool(["l","-ba","-slt","-sccUTF-8",source]);let total=0,count=0;const seen=new Set();
     // Classify the package before unrelated readme files can mask its format.

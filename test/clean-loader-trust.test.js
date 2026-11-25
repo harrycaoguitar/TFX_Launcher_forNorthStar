@@ -13,7 +13,7 @@ function fixture(t){
   const api=load("northstar-clients",{
     electron:{app:{getPath:()=>directory},ipcMain:{handle(){},emit(){}}},"../win":()=>({send(){}}),"./settings":()=>({...conf}),
     "./findgame":{validateGamePath:value=>fs.existsSync(path.join(value,"Titanfall2.exe"))?value:null},
-    "./northstar-region":{resolveProfile:game=>path.join(game,"R2Northstar")},"./launch-session":{splitArguments:()=>[],hasGame:()=>false},
+    "./northstar-region":{normalize:value=>value === "global" ? "global" : "cn",resolveProfile:game=>path.join(game,"R2Northstar")},"./launch-session":{splitArguments:()=>[],hasGame:()=>false},
     "./northstar-client":{...clients,createClientSwitcher:()=>switcher},
     "./northstar-client-cache":{ClientBundleCache:class extends ClientBundleCache{constructor(options){super({...options,cacheRoot});}descriptor(){throw Error("unexpected extraction or cache mutation");}base(){throw Error("unexpected extraction");}}},"./releases":releases
   });

@@ -12,10 +12,11 @@ function fixture(format){
   const gate={busy:false,async run(label,action){calls.push(["gate",label]);return action();}},noop=async()=>false;
   const mocks={electron:{app,ipcMain:{handle:(name,cb)=>callbacks.set(name,cb)},dialog:{},BrowserWindow:{},shell:{}},"./dds-engine":{DdsEngine:Engine,errorText:error=>error.message},"./vtf-engine":{VtfEngine:Engine,errorText:error=>error.message},"./vtf-cache":{VtfImportCache:Cache},"./settings":()=>saved,"./is_running":{game:noop},"./dds-operation-gate":gate,"./dds-guard":protection};
   let resourceAdapter;
+  mocks["./is_running"].snapshot=async()=>({ok:true,processes:[]});
   mocks["./skin-resource-download"]={register(_kind,options){resourceAdapter=options;}};
   mocks["./offline-skin-pack"]={OfflineSkinPack:class{},productionDirectories:()=>[]};
   mocks["./skin-conflict-preview"]={forStatus:async options=>{calls.push(["preview",options.format,options.packageId]);return options.packageId&&options.isCurrent()?{version:1,packageId:options.packageId,format:options.format,counts:{replace:1,restore:0,modConflicts:0},items:[],warnings:[],complete:false,blocked:false}:null;}};
-  const filename=path.join(__dirname,"../src/modules",format+".js"),context={require:id=>Object.hasOwn(mocks,id)?mocks[id]:require(id),__dirname:path.dirname(filename),module:{exports:{}},console};
+  const filename=path.join(__dirname,"../src/modules",format+".js"),localRequire=require("node:module").createRequire(filename),context={require:id=>Object.hasOwn(mocks,id)?mocks[id]:localRequire(id),__dirname:path.dirname(filename),module:{exports:{}},console};
   vm.runInNewContext(fs.readFileSync(filename,"utf8"),context,{filename});
   const event={sender:{isDestroyed:()=>false,send(){}}};
   return {game,calls,callbacks,event,saved,protection,resourceAdapter,setCaptureFailure:()=>{captureFails=true;},setCommitFailure:()=>{commitFails=true;},setInstallFailure:()=>{installFails=true;},statusCalls:()=>engineStatusCalls};
