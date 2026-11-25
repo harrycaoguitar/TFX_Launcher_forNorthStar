@@ -1,5 +1,0 @@
-﻿<LSX>
-    <Response sender="EbisuSDK" id="##ID##">
-        <RequestLicenseResponse License="##License##" />
-    </Response>
-</LSX>

@@ -1,5 +1,0 @@
-﻿<LSX>
-  <Response sender="Commerce" id="##ID##">
-    <GetWalletBalanceResponse Balance="0"/>
-  </Response>
-</LSX>

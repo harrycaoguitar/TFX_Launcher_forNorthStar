@@ -1,5 +1,0 @@
-﻿<LSX>
-    <Response id="##ID##" sender="EbisuSDK">
-        <GetGameInfoResponse GameInfo="false" />
-    </Response>
-</LSX>

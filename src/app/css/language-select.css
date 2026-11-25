@@ -1,5 +1,0 @@
-#options #uiLanguage{display:none!important}
-#options .language-select-trigger{min-width:176px;height:38px;border-radius:11px;font-size:11px}
-#options .language-select-menu{position:absolute;z-index:20;transform-origin:top right}
-#options .language-select-menu .mod-sort-option{min-height:41px;font-size:11px}
-html[data-theme-tone="light"] #options .language-select-menu{box-shadow:0 15px 38px rgba(24,46,61,.1),inset 0 1px 0 rgba(255,255,255,.5)}

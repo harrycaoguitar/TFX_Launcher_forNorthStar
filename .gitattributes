@@ -1,8 +1,0 @@
-*.md text eol=lf
-/package.json text eol=lf
-/package-lock.json text eol=lf
-# Preserve released bytes even for nested Markdown, manifests and notices.
-src/** -text
-build/** -text
-build-tools/** -text
-release-verification/** -text

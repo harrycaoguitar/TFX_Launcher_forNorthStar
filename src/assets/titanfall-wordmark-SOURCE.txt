@@ -1,6 +1,0 @@
-TITANFALL 2 official Steam store logo
-Source: https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/1237970/logo.png
-Steam app: https://store.steampowered.com/app/1237970/Titanfall_2/
-Rights: Respawn Entertainment / Electronic Arts
-Original SHA256: e883f9274d7a88d7b9c59e927296dded53697857d89a400e71d15568a87ea824
-Change: cropped transparent padding only; 525x99 pixels.

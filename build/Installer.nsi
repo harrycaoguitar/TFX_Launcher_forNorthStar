@@ -4,7 +4,7 @@ Unicode true
 !include "LogicLib.nsh"
 !include "nsDialogs.nsh"
 !ifndef APP_DIR
-  !error "Build with build/Build.ps1"
+  !error "Build with Build-Tauri.ps1"
 !endif
 
 ; TFX's installer uses its own compact, editorial page layout. MUI is used only
@@ -27,8 +27,8 @@ VIAddVersionKey /LANG=1033 "FileDescription" "TFX Launcher ${VERSION} Installer"
 VIAddVersionKey /LANG=1033 "FileVersion" "${FILEVERSION}"
 VIAddVersionKey /LANG=1033 "ProductVersion" "${VERSION}"
 VIAddVersionKey /LANG=1033 "LegalCopyright" "TFX Launcher contributors"
-!define MUI_ICON "..\src\assets\icons\icon.ico"
-!define MUI_UNICON "..\src\assets\icons\icon.ico"
+!define MUI_ICON "..\src-tauri\icons\icon.ico"
+!define MUI_UNICON "..\src-tauri\icons\icon.ico"
 !define MUI_BGCOLOR "161B26"
 !define MUI_TEXTCOLOR "F7F8FA"
 !define MUI_CUSTOMFUNCTION_GUIINIT SetupGuiInit

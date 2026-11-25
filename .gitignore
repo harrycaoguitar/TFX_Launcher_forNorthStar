@@ -1,9 +1,7 @@
-node_modules/
+# Build outputs & caches
+src-tauri/target/
 dist/
+*.tmp
 *.log
-TFX-Original-Skins/
-TFX-Original-Skins-*.zip
-
-# Vendored installer tooling includes its runtime dist/ directories.
-!build-tools/asar/node_modules/
-!build-tools/asar/node_modules/**
+.DS_Store
+Thumbs.db
